@@ -1,0 +1,46 @@
+{
+  "transactionCount": 1332,
+  "calculatedClosingBalance": 264678.95,
+  "statementClosingBalance": 264678.95,
+  "samples": [
+    {
+      "match": "UPI/SOHAN LAL/545791421660/UPI",
+      "withdrawal": 100,
+      "deposit": null,
+      "balance": 239334.93,
+      "date": "2025-04-01"
+    },
+    {
+      "match": "ATL/5971/504492/RAVET",
+      "withdrawal": 10000,
+      "deposit": null,
+      "balance": 246213.07,
+      "date": "2025-05-04"
+    },
+    {
+      "match": "NEFT FDRLM8119246233 PRAWEEN",
+      "withdrawal": null,
+      "deposit": 38000,
+      "balance": 259515.07,
+      "date": "2025-04-29"
+    },
+    {
+      "match": "NACH-10-DR-HDFC BANK LIMITED",
+      "withdrawal": 18932,
+      "deposit": null,
+      "balance": 219516.93,
+      "date": "2025-04-05"
+    },
+    {
+      "match": "Int.Pd:5611535323:01-04-2025 to 30",
+      "withdrawal": null,
+      "deposit": 1651,
+      "balance": 276643.52,
+      "date": "2025-07-01"
+    }
+  ],
+  "checks": {
+    "balanceChainMismatches": 0,
+    "hasSummaryBlock": false
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "transactionCount": 415,
+  "samples": [
+    {
+      "match": "EBANK:WIB/1510617293",
+      "particulars": "EBANK:WIB/1510617293/Edfs",
+      "withdrawal": 482630.86,
+      "deposit": null,
+      "balance": 2500,
+      "date": "2026-05-31"
+    },
+    {
+      "match": "NEFT-HDFCH01028081478",
+      "particulars": "NEFT-HDFCH01028081478-QUEST ENTERPRISES PVT LTD",
+      "withdrawal": null,
+      "deposit": 5000,
+      "balance": 485130.86,
+      "date": "2026-05-31"
+    },
+    {
+      "match": "NEFT-YESAP61513836637",
+      "particulars": "NEFT-YESAP61513836637-PhonePe Limited",
+      "withdrawal": null,
+      "deposit": 312955.53,
+      "balance": 405477.86,
+      "date": "2026-05-31"
+    },
+    {
+      "match": "NEFT-AXNPN15103570408",
+      "particulars": "NEFT-AXNPN15103570408-PHONEPE LIMITED-PAYMENT AGGR",
+      "withdrawal": null,
+      "deposit": 90022.33,
+      "balance": 92522.33,
+      "date": "2026-05-31"
+    },
+    {
+      "match": "EBANK:WIB/1510561499",
+      "particulars": "EBANK:WIB/1510561499/Edfs",
+      "withdrawal": 278040,
+      "deposit": null,
+      "balance": 2500,
+      "date": "2026-05-30"
+    },
+    {
+      "match": "UPI/615048738968",
+      "particulars": "UPI/615048738968/19:30:23/UPI/q8213096 44@ybl/mumm",
+      "withdrawal": 8300,
+      "deposit": null,
+      "balance": 280540,
+      "date": "2026-05-30"
+    },
+    {
+      "match": "TO TRANSFER FD CLOSURE",
+      "particulars": "TO TRANSFER FD CLOSURE",
+      "withdrawal": null,
+      "deposit": 123168,
+      "balance": 288840,
+      "date": "2026-05-30"
+    },
+    {
+      "match": "UPI/615008244607",
+      "particulars": "UPI/615008244607/10:41:19/UPI/gpay- 11244443745@ok",
+      "withdrawal": 2000,
+      "deposit": null,
+      "balance": 61806,
+      "date": "2026-05-30"
+    },
+    {
+      "match": "NEFT-AXNPN15095262958",
+      "particulars": "NEFT-AXNPN15095262958-PHONEPE LIMITED-PAYMENT AGGR",
+      "withdrawal": null,
+      "deposit": 48965.25,
+      "balance": 51465.25,
+      "date": "2026-05-30"
+    },
+    {
+      "match": "CHARGES FOR",
+      "particulars": "CHARGES FOR :IMPS/P2A/614215948909/XXXXXXXX",
+      "withdrawal": 5.9,
+      "deposit": null,
+      "balance": 282553.1,
+      "date": "2026-05-22"
+    }
+  ],
+  "checks": {
+    "noFooterNoise": true,
+    "noOpeningBalanceGarbage": true,
+    "balanceChainMismatches": 0
+  }
+}

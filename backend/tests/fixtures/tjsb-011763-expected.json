@@ -1,0 +1,71 @@
+{
+  "transactionCount": 80,
+  "openingBalance": 94466.55,
+  "closingBalance": 218837.44,
+  "totalDebits": 490363.34,
+  "totalCredits": 614734.23,
+  "samples": [
+    {
+      "match": "NEFT/LIC OF INDIA IPP CELL",
+      "withdrawal": 0,
+      "deposit": 798,
+      "balance": 95264.55,
+      "date": "2025-04-02"
+    },
+    {
+      "match": "NEFT/MIRAE ASSET MF",
+      "withdrawal": 0,
+      "deposit": 10000,
+      "balance": 105264.55,
+      "date": "2025-04-03"
+    },
+    {
+      "match": "NEFT/LICMDOPH-LIC MDO1 VII",
+      "withdrawal": 0,
+      "deposit": 421200,
+      "balance": 548060.55,
+      "date": "2025-06-04"
+    },
+    {
+      "match": "CSHDEP 008 BY CASH",
+      "withdrawal": 0,
+      "deposit": 50000,
+      "balance": 598060.55,
+      "date": "2025-06-11"
+    },
+    {
+      "match": "NATIONAL INSURANCE COMP",
+      "chequeNo": "717488",
+      "withdrawal": 45258,
+      "deposit": 0,
+      "balance": 514870.19,
+      "date": "2025-09-04"
+    },
+    {
+      "match": "Sundaram Aggressive Hybri",
+      "chequeNo": "717495",
+      "withdrawal": 200000,
+      "deposit": 0,
+      "balance": 290022.93,
+      "date": "2026-03-16"
+    },
+    {
+      "match": "NEFT/SUNDARAM MUTUAL",
+      "withdrawal": 0,
+      "deposit": 2011.23,
+      "balance": 287034.16,
+      "date": "2026-03-20"
+    },
+    {
+      "match": "INTCR 01-01-2026 to 31-03-",
+      "withdrawal": 0,
+      "deposit": 2985,
+      "balance": 218837.44,
+      "date": "2026-03-31"
+    }
+  ],
+  "checks": {
+    "noFooterNoise": true,
+    "balanceChainMismatches": 0
+  }
+}

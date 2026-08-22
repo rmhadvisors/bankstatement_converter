@@ -1,0 +1,90 @@
+SBI Statement Parsing Summary
+==============================
+Source: tests/fixtures/SBI_2025-26_organized.pdf
+Layout detected: bank-of-baroda-style OCR layout (sbi-ocr)
+Pages: 14
+Total transactions extracted: 245
+Opening balance (BROUGHT FORWARD): 74122.81
+Closing balance (last row): 83492.15
+Total debits: 532364.77
+Total credits: 712697.67
+Rows failed to parse (missing date/balance): 23
+Rows failing balance reconciliation: 51 / 245
+
+Balance mismatches (page, index, expected vs actual):
+  page 1, row #9 (2025-04-17): expected 65114, got 64933.2, diff -180.8 -- UPI/DR/510767565720/VYESB/p
+  page 2, row #36 (2025-06-03): expected 23599.14, got 21799.14, diff -1800 -- UPI/DR/515465666813/SHRI PRA/UTIB/gpay-11234/Sent
+  page 4, row #42 (2025-07-20): expected 9014.14, got 13045.13, diff 4030.99 -- 052004299/koyal Dr/YESB/paytmqr6cy/Sent UPI/DR/520266174423/Vishwamb /bacb/0031101000/Sent
+  page 4, row #45 (2025-07-24): expected 7256.13, got 6106.13, diff -1150 -- UPI/DR/520512390796/Shree Ba/YESB/paytmqr6h8/Sent
+  page 4, row #46 (2022-01-25): expected 6106.13, got 6104.13, diff -2 -- UPI/DR/677740272065/Google P/UTIB/playstore@/Mand
+  page 4, row #47 (2025-07-25): expected 42050.13, got 40839.13, diff -1211 -- UPI/DR/678208192065/Google P/UTIB/playstore@/Mand UPI/DR/520626654970/VVСMСOЛ CIC/vcmc3799
+  page 4, row #55 (2025-07-30): expected 39694.13, got 39504.13, diff -190 -- UPI/DR/521108589962/Shree 19000 3a/YESB/paytmqr6ki/Sent
+  page 5, row #73 (2025-08-14): expected 12665.47, got 11865.47, diff -800 -- UPI/DR/522648161914/Shree Ba/YESB/paytmqr6ki/Sent UPIDR/522648218418/SHEETAL
+  page 5, row #75 (2025-08-19): expected 9074.97, got 4904.97, diff -4170 -- UPI/DR/523218269008/GirOrganic
+  page 5, row #78 (2025-08-21): expected 4014.97, got 2996.97, diff -1018 -- UPI/DR/388234005573/Silver 1,018,00 S/bacb/0031001000/Sent
+  page 5, row #79 (2025-08-21): expected 2847.97, got 1327.97, diff -1520 -- UPI/DR/388234411436/Silver S/bacb/0031001000/Sent UPI/DR/221637652375/Google P/UTIB/playst
+  page 6, row #87 (2024-12-31): expected 34676.97, got 34577.97, diff -99 -- UPI/DR/112470012435/Google
+  page 6, row #93 (2020-09-03): expected 40077.17, got 39487.17, diff -590 -- UPI/CRJ561201890161/NITISH
+  page 6, row #98 (2025-09-09): expected 35357.17, got 35191.52, diff -165.65 -- UPI/DR/525240457138/SBI Bank/YESB/ccbillpay@/Sent UPI/DR/291377134142/VINOD SO/YESB/paytm.
+  page 6, row #99 (2025-09-09): expected 35086.52, got 33786.52, diff -1300 -- UPI/DR/525243396311/SHRI PRA/UTIB/gpay-11262/Sent UPI/DR/690408551753/Aoudumb e/UTIB/99876
+  page 7, row #107 (2025-09-15): expected 24690.65, got 21189.65, diff -3501 -- UPI/DR/413094852585/Mr RAHU/UTIB/8200017070/UPI UPI/DR/389414445709/MS SDRC/CIC/mssdrcpuls
+  page 7, row #112 (2025-09-18): expected 18092.27, got 17862.27, diff -230 -- UPI/DR/52612923314/SHRI PRA/UTIB/gpay-11262/Sent UPI/DR/291912588878/SBI Bank/YESB/ccbillp
+  page 7, row #113 (2025-09-19): expected 17592.27, got 17652.27, diff 60 -- UPI/DR/291916395699/MahavitrY
+  page 7, row #120 (2025-09-22): expected 9730.67, got 8980.67, diff -750 -- UPI/DR/526538820633/VINOD ae CO
+  page 7, row #121 (2022-11-12): expected 8900.67, got 8300.67, diff -600 -- UPV/DR/526644469299/VINOD
+  page 8, row #122 (2025-09-24): expected 8300.67, got 7320.67, diff -980 -- UPI/DR/526750831157/VINOD 980,00 SO/YESB/paytm.s1fa/Sent
+  page 8, row #123 (2025-09-25): expected 6730.67, got 6581.67, diff -149 -- UPI/DR/978517112685/Google P/UTIB/playstore@/Mand UPI/DR/526855156437/SHEETAL
+  page 8, row #124 (2025-09-25): expected 42946.67, got 43170.67, diff 224 -- TRANSACTION
+  page 9, row #133 (2025-10-20): expected 40015.17, got 1877.82, diff -38137.35 -- UPI/DR/529310964502/IRSHAD R/ESB/q607953889/Sent
+  page 9, row #135 (2025-10-21): expected 1437.82, got 37802.82, diff 36365 -- TRANSACTION
+  page 9, row #140 (2025-10-25): expected 22382.82, got 22233.82, diff -149 -- UPI/DR/995648152985/Google 149,00
+  page 10, row #147 (2025-10-30): expected 20102.02, got 19764.43, diff -337.59 -- UPI/DR/530303443081/SBI Bank/YESB/ccbillpay@/Sent
+  page 10, row #165 (2025-11-20): expected 7011.8, got 6459.8, diff -552 -- UPI/DR/295341664277/Transfor/Y ESB/paytm.s1iv/Sent
+  page 10, row #167 (2025-11-20): expected 6093, got 5410, diff -683 -- UPI/DR/295356106576/Jio/YESB/p UPI/DR/694316868567/Vividham/ 683,00 UTIB/9136338288/Sent
+  page 11, row #175 (2025-12-03): expected 37462.82, got 3462.82, diff -34000 -- UPI/DR/296104715545/Pushpase/ UPI/DR/533864801949/Jio/YESB/p
+  page 11, row #180 (2025-12-08): expected 1812.82, got 51562.82, diff 49750 -- UPI/DR/534293268646/Khan Han/YESB/paytm.s1m9/Sent UPI/DR/534721820152VIYESB/p
+  page 11, row #182 (2025-12-19): expected 38545.81, got 37695.39, diff -850.42 -- UPV/DR/296998513737/SBI Bank/YESB/ccbillpay@/Sent UPI/DR/696041992466/UJUS HYG/BACB/ujwalm
+  page 11, row #183 (2025-12-25): expected 37695.39, got 37546.39, diff -149 -- UPI/DR/400279273595/Google 149. 00
+  page 12, row #190 (2026-01-03): expected 79860.74, got 79008.24, diff -852.5 -- UPI/CR/600381698611/SHAMA PU/BACB/snkhangand/UPI
+  page 12, row #191 (2026-01-05): expected 77188.24, got 76170.24, diff -1018 -- UPI/DR/600556528453/Bharatga/ UPI/DR/696870021344/Silver S/bacb/0031001000/Sent
+  page 12, row #199 (2026-01-09): expected 10338.44, got 5338.44, diff -5000 -- 50000000
+  page 12, row #202 (2026-01-19): expected 3898.44, got 1898.44, diff -2000 -- UPV/DR/601932697915/Vishwamb
+  page 12, row #206 (2026-01-27): expected 37937.64, got 27032.64, diff -10905 -- TRANSACTION
+  page 12, row #207 (2026-01-27): expected 37937.64, got 26731.84, diff -11205.8 -- UPI/DR/299056350579/SBI Bank/YESB/ccbillpay@/Sent
+  page 12, row #208 (2026-01-27): expected 27032.64, got 16731.84, diff -10300.8 -- UPI/DR/299059301274/VUYESB/p
+  page 12, row #209 (2026-01-28): expected 26731.84, got 11731.84, diff -15000 -- UPI/DR/299105673297/Pushpase/
+  page 12, row #210 (2026-01-28): expected 16731.84, got 2687.84, diff -14044 -- UPI/DR/299105680663/Pushpase/
+  page 12, row #213 (2026-01-28): expected 17144.31, got 6319.37, diff -10824.94 -- UPI/DR/602895851118/SBI Bank/YESB/ccbillpay@/Sent
+  page 13, row #226 (2026-02-11): expected 2432.08, got 1632.08, diff -800 -- UPI/DR/604284199901/Pushpase/
+  page 13, row #231 (2026-02-16): expected 8534.28, got 8094.28, diff -440 -- UPI/DR/604717909705/Vishwamb UPI/DR/605356379274/VYESB/p
+  page 13, row #232 (2026-02-22): expected 7294.28, got 4214.28, diff -3080 -- UPI/DR/605359325106/PAYTM UPI/DR/397793732286/MINESH
+  page 13, row #234 (2021-05-20): expected 4065.28, got 3884.48, diff -180.8 -- UPVDRJ605783094557NWYESB/p 180,80
+  page 14, row #237 (2026-03-02): expected 74180.48, got 83180.48, diff 9000 -- UPI/CR/606148168911/SHAMA PU/BACB/snkhangand/UPI
+  page 14, row #239 (2026-03-04): expected 66053.96, got 61110.66, diff -4943.3 -- UPI/DR/201251956982/VINOD SO/YESB/paytm.d170/Sent UPI/DR/606328032972/Vi/YESB/p UPI/DR/903
+  page 14, row #240 (2026-03-13): expected 60680.66, got 58860.66, diff -1820 -- UPV/DR/600B49809394/Silver S/bacb/0031001000/Sent
+  page 14, row #245 (2026-03-19): expected 93792.15, got 83492.15, diff -10300 -- UPI/DR/202217893482/SBI Bank/YESB/ccbillpay@/Sent UPV/DR/399235000862/Silver S/bacb/003100
+
+Rows missing date or balance:
+  page 2: UPI/DR/512135458992/SHEETAL 91,377,79CR
+  page 2: UPI/CR/512398796727/DANEEN E/DFB/2013khanna/UPI 95,949,97CR
+  page 2: UPI/DR/515697452914/SHEETAL 21,169,14CR
+  page 4: 40.389 13CR UPI/DR/520975079288/Shree Ba/YESB/pavtmartki/Sen
+  page 4: UPI/DR/521087035503/Indian 390413CK
+  page 5: UPI/DR/522174059838/Shree 9,283.09GR. Ba/YESB/paytmqr6ki/Sent
+  page 6: UPI/CR/630989972405/Google 2,00
+  page 6: 28,577,17CR UPV/DR/290965097/66/VVYESB/p
+  page 6: UPI/DR/524688859201/VINOD SO/YESB/paytm.s1fa/Sent
+  page 7: UPI/DR/525578572556/VINOD 30,809,65CR SO/YESB/paytm.s1fa/Sent
+  page 7: UPI/CR/526398157591/MUSTAFA TOUUL
+  page 8: UPI/DR/880544422735/Google P/UTIB/playstore@/Mand
+  page 8: UP//DR/527494652055/VINOD 1,150,00 SO/ESB/paytm.s17/Sent
+  page 10: TRANSACTION
+  page 10: UPI/DR/294394819878/ADYANT M/C/C/adyantmedi/Sent
+  page 10: UPI/DR/295275374565/SBI Bank/YESB/billpay@/Sent
+  page 12: UPI/DR/697421101323/SHAMA PU/BACB/snkhangand/Sent
+  page 12: UPI/DR/298699983473/Pushpase/ 1,/21.04CK
+  page 12: TRANSACTION
+  page 13: UPI/DR/396321110997/Mrs POOJ/sbin/3531386423/Sent
+  page 13: UPI/DR/396507344789/AKSHIT
+  page 13: UPI/CR/299839738480/Pushpase/
+  page 13: UPI/DR/818847340446/Google 1,573.C8CR
