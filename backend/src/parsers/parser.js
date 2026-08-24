@@ -7,7 +7,12 @@ import {
 } from "./ocrColumnarParser.js";
 import { isSocietySavingsCompact, parseSocietySavingsCompact } from "./ocrSocietySavingsParser.js";
 import { isSouthIndianBankLayout, parseSouthIndianBankStatement } from "./ocrSouthIndianParser.js";
-import { isBankOfBarodaLayout, parseBankOfBarodaTransactions } from "./bobParser.js";
+import {
+  isBankOfBarodaLayout,
+  parseBankOfBarodaTransactions,
+  isBankOfBarodaSavingsLayout,
+  parseBankOfBarodaSavingsTransactions,
+} from "./bobParser.js";
 import {
   isBankOfBarodaWorldAppLayout,
   parseBankOfBarodaWorldAppTransactions,
@@ -1227,6 +1232,9 @@ function parseStatement(extraction) {
   } else if (isBankOfBarodaLayout(lines)) {
     detectedFormat = "bank-of-baroda";
     transactions = parseBankOfBarodaTransactions(lines);
+  } else if (isBankOfBarodaSavingsLayout(lines)) {
+    detectedFormat = "bank-of-baroda-savings";
+    transactions = parseBankOfBarodaSavingsTransactions(lines);
   } else if (isBankOfBarodaWorldAppLayout(lines)) {
     detectedFormat = "bank-of-baroda-world-app";
     transactions = toBobWorldAppStatementTransactions(parseBankOfBarodaWorldAppTransactions(lines));

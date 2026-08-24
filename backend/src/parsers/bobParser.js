@@ -275,6 +275,157 @@ function applyOrphanAmount(current, amountItem, amountColumns) {
   current.transactionColumn = nearestColumn(amountItem.x, amountColumns);
 }
 
+// A second, unrelated Bank of Baroda template: the savings-account passbook-style statement
+// ("DATE PARTICULARS CHQ.NO. WITHDRAWALS DEPOSITS BALANCE"), as opposed to the business/current
+// account template above ("TRAN DATE VALUE DATE NARRATION ... WITHDRAWAL(DR) DEPOSIT(CR)"). The
+// two share nothing in header text or column layout, so this gets its own detector/parser pair,
+// but reuses extractAmountItems/nearestColumn/clean/parseDate above rather than redefining them.
+const SAVINGS_HEADER_COLUMNS = ["DATE", "PARTICULARS", "CHQ.NO.", "WITHDRAWALS", "DEPOSITS", "BALANCE"];
+
+function isBankOfBarodaSavingsLayout(lines) {
+  for (const entry of lines) {
+    const items = entry.items || [];
+    const texts = items.map((item) => clean(item.text));
+    if (texts[0] === "DATE" && texts[1] === "PARTICULARS" && SAVINGS_HEADER_COLUMNS.every((c) => texts.includes(c))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Not every physical page reprints this header -- a transaction list can spill onto the next page
+// with no letterhead/header at all, straight back into transaction rows. The column x-positions are
+// consistent for the whole document (same template throughout), so this is detected once globally
+// rather than per page. Shaped to match nearestColumn()/assignBobAmounts() above, which only look
+// at withdrawal/deposit/balance.
+function detectBobSavingsColumns(lines) {
+  for (const entry of lines) {
+    const items = entry.items || [];
+    const texts = items.map((item) => clean(item.text));
+    if (texts[0] !== "DATE" || texts[1] !== "PARTICULARS") continue;
+    if (!SAVINGS_HEADER_COLUMNS.every((c) => texts.includes(c))) continue;
+
+    const findX = (label) => items.find((item) => clean(item.text) === label)?.x ?? null;
+    return {
+      withdrawal: findX("WITHDRAWALS"),
+      deposit: findX("DEPOSITS"),
+      balance: findX("BALANCE"),
+    };
+  }
+  return null;
+}
+
+function isBobSavingsNoiseLine(text) {
+  return (
+    !text ||
+    /^-+$/.test(text) ||
+    /^BANK OF BARODA\b/i.test(text) ||
+    /^ADDRESS:/i.test(text) ||
+    /^HELPLINE NO\.?\s*:/i.test(text) ||
+    /^BRANCH PHONE NO\.?\s*:/i.test(text) ||
+    /^MICR CODE:/i.test(text) ||
+    // Branch name + print timestamp line, e.g. "BOISAR(WEST),MUMBAI Time : 09:44:46" -- the branch
+    // name varies per statement, so this matches on the "Time : HH:MM:SS" suffix instead.
+    /Time\s*:\s*\d{2}:\d{2}:\d{2}/.test(text) ||
+    /^A\/C Name\b/i.test(text) ||
+    /^Address\s*:/i.test(text) ||
+    /^City\s*:/i.test(text) ||
+    /^CKYC Number/i.test(text) ||
+    /^Tel No\.?:/i.test(text) ||
+    /^Nomination Flag/i.test(text) ||
+    /^Scheme Description/i.test(text) ||
+    /^Joint Holders/i.test(text) ||
+    /^A\/C Number\s*:/i.test(text) ||
+    /^Statement of account for the period/i.test(text) ||
+    /^DATE PARTICULARS CHQ\.NO\.? WITHDRAWALS DEPOSITS BALANCE$/i.test(text) ||
+    /^Page Total:/i.test(text) ||
+    /^Grand Total:/i.test(text) ||
+    /^ClrBal:/i.test(text) ||
+    /^As On\b/i.test(text) ||
+    /^Note: Cheques received/i.test(text) ||
+    // Wrapped continuation lines of the two disclaimers above -- the sentence is split across two
+    // physical lines in the PDF, and only the first half starts with the anchor text above.
+    /^returning on the basis opening balance in account/i.test(text) ||
+    /^commitment to customers and Micro and Small/i.test(text) ||
+    /^Unless the constituent notifies/i.test(text) ||
+    /^within 15 days from the date/i.test(text) ||
+    /^transaction\(s\) in the statement/i.test(text) ||
+    /^We are committed to treat customers/i.test(text) ||
+    /^For details please visit/i.test(text) ||
+    /^Please contact your branch/i.test(text) ||
+    /^to get transaction alerts/i.test(text) ||
+    /^ABBREVIATIONS USED/i.test(text) ||
+    /^Pending penal charges/i.test(text) ||
+    /^This is a computer generated statement/i.test(text) ||
+    /^\*+END OF STATEMENT\*+/i.test(text) ||
+    // Two-column glossary rows, e.g. "Retd - Returned Cheque SI - Standing Instructions" -- codes
+    // aren't consistently all-caps ("Retd"), hence case-insensitive rather than [A-Z]+.
+    /^[A-Za-z]+\.?\s*-\s*[A-Za-z ]+\s+[A-Za-z]+\.?\s*-\s*[A-Za-z ]+$/i.test(text)
+  );
+}
+
+const LEADING_DATE_RE = /^(\d{2}-\d{2}-\d{2})\s*(.*)$/;
+
+function parseBankOfBarodaSavingsTransactions(lines) {
+  const columns = detectBobSavingsColumns(lines);
+  if (!columns) return [];
+
+  const transactions = [];
+  let current = null;
+
+  for (const entry of lines) {
+    const text = clean(entry.text || entry);
+    if (!text || isBobSavingsNoiseLine(text)) continue;
+
+    const items = entry.items || [];
+    const dateItem = items.find((item) => LEADING_DATE_RE.test(clean(item.text)));
+
+    if (!dateItem) {
+      // Narration continuation line belonging to the previous transaction (pdf.js keeps the whole
+      // date+particulars+chq-no run as one text item on the transaction's own line, but the
+      // wrapped reference/narration below it is always its own separate line).
+      if (current) current.particulars = clean(`${current.particulars} ${text}`);
+      continue;
+    }
+
+    // dateItem's own text is just "date + particulars + chq-no fragment" -- pdf.js only glues text
+    // into one item when there's no real gap, and the amounts always sit far enough right to land
+    // in their own items, so nearestColumn()/isCreditBalance from the layout-1 parser above work
+    // unchanged here.
+    const dateMatch = clean(dateItem.text).match(LEADING_DATE_RE);
+    const amountItems = extractAmountItems(items.filter((item) => item !== dateItem));
+
+    let withdrawal = null;
+    let deposit = null;
+    let balance = null;
+
+    for (const item of amountItems) {
+      if (item.isCreditBalance) {
+        balance = item.value;
+        continue;
+      }
+      const column = nearestColumn(item.x, columns);
+      if (column === "balance") balance = item.value;
+      else if (column === "withdrawal") withdrawal = item.value;
+      else deposit = item.value;
+    }
+
+    const row = {
+      date: parseDate(dateMatch[1]),
+      particulars: clean(dateMatch[2]) || "TRANSACTION",
+      chequeNo: null,
+      withdrawal,
+      deposit,
+      balance,
+    };
+
+    transactions.push(row);
+    current = row;
+  }
+
+  return transactions;
+}
+
 function parseBankOfBarodaTransactions(lines) {
   const amountColumns = detectBobAmountColumns(lines);
   const transactions = [];
@@ -334,4 +485,9 @@ function parseBankOfBarodaTransactions(lines) {
   return classified;
 }
 
-export { isBankOfBarodaLayout, parseBankOfBarodaTransactions };
+export {
+  isBankOfBarodaLayout,
+  parseBankOfBarodaTransactions,
+  isBankOfBarodaSavingsLayout,
+  parseBankOfBarodaSavingsTransactions,
+};

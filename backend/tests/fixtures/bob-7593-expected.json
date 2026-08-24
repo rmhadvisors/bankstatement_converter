@@ -1,0 +1,30 @@
+{
+  "transactionCount": 121,
+  "openingBalance": 136306.44,
+  "closingBalance": 393538.94,
+  "totalWithdrawal": 828602.5,
+  "totalDeposit": 1085835,
+  "samples": [
+    {
+      "match": "UPI/5464330003",
+      "date": "2025-04-08",
+      "withdrawal": 700,
+      "deposit": null,
+      "balance": 126855.44
+    },
+    {
+      "match": "MBK/5098115780",
+      "date": "2025-04-08",
+      "withdrawal": null,
+      "deposit": 200000,
+      "balance": 326469.44
+    },
+    {
+      "match": "UPI/6455565851",
+      "date": "2026-03-30",
+      "withdrawal": 269.64,
+      "deposit": null,
+      "balance": 393538.94
+    }
+  ]
+}
