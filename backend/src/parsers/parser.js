@@ -36,6 +36,7 @@ import { parseFederalOcrTransactions } from "./parsers/federalOcrParser.js";
 import { isIdbiLayout, parseIdbiTransactions } from "./parsers/idbiParser.js";
 import { isIdbiLedgerLayout, parseIdbiLedgerTransactions } from "./parsers/idbiLedgerParser.js";
 import { isBccbLedgerLayout, parseBccbLedgerTransactions } from "./parsers/bccbLedgerParser.js";
+import { isApnaSahakariLayout, parseApnaSahakariTransactions } from "./parsers/apnaSahakariParser.js";
 import { isFinacleTransactionInquiryLayout, parseFinacleTransactions } from "./parsers/finacleOcrParser.js";
 import { isJanaLayout, parseJanaTransactions } from "./parsers/janaParser.js";
 import { isUnionBankLayout, parseUnionBankTransactions } from "./parsers/unionBankParser.js";
@@ -1118,6 +1119,20 @@ function parseStatement(extraction) {
     for (const issue of bccb.reconciliationIssues) {
       logs.push({ level: "error", stage: "parse", message: issue });
     }
+  } else if (detectedFormat === "apna-sahakari" || isApnaSahakariLayout(lines)) {
+    detectedFormat = "apna-sahakari";
+    const apnaSahakari = parseApnaSahakariTransactions(lines);
+    transactions = apnaSahakari.transactions;
+    parserPrintedTotals = apnaSahakari.printedTotals;
+    if (apnaSahakari.flaggedRows?.length) reviewRows.push(...apnaSahakari.flaggedRows);
+
+    // Ground truth here is both the statement's own Totals / Balance row (whole-statement Dr/Cr
+    // sums and closing balance) and the running-balance chain (balance[i] = balance[i-1] - Dr +
+    // Cr) computed row-by-row from the printed Opening Balance -- together they catch both an
+    // aggregate extraction miss and a single row's Dr/Cr column swapped in isolation.
+    for (const issue of apnaSahakari.reconciliationIssues) {
+      logs.push({ level: "error", stage: "parse", message: issue });
+    }
   } else if (detectedFormat === "idbi-ledger" || isIdbiLedgerLayout(lines)) {
     detectedFormat = "idbi-ledger";
     const idbiLedger = parseIdbiLedgerTransactions(lines);
@@ -1265,6 +1280,7 @@ function parseStatement(extraction) {
   if (
     detectedFormat !== "icici-detailed" &&
     detectedFormat !== "bccb-ledger" &&
+    detectedFormat !== "apna-sahakari" &&
     !(detectedFormat === "columnar-ocr" && isAxisOcrLayout(lines))
   ) {
     transactions = correctDebitCreditByBalance(transactions);

@@ -26,6 +26,14 @@ function detectBank(pdfTextOrLines) {
   }
 
   if (
+    /APNA\s+SAHAKARI\s+BANK\s+LTD/i.test(text) &&
+    /R045006\s*-\s*STATEMENT OF ACCOUNTS/i.test(text) &&
+    /Date\s+Particulars\s+Instruments\s+Dr Amount\s+Cr Amount\s+Total Amount/i.test(text)
+  ) {
+    return "apna-sahakari";
+  }
+
+  if (
     /IDBI\s+BANK\s+LTD/i.test(text) &&
     /REP31\s+Customer\s+Account\s+Ledger/i.test(text) &&
     /GL\.\s+Value\s+Tran\s+Id\s+Instrmnt\s+Particulars\s+Transaction\s+Transaction\s+Balance/i.test(text)

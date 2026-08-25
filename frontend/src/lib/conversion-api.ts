@@ -1,3 +1,8 @@
+// Empty by default: same-origin "/api/convert" works for local dev (via the Vite proxy) and any
+// combined single-origin deploy. Set VITE_API_BASE_URL when the frontend and backend are deployed
+// separately (e.g. Vercel + Hostinger) so requests reach the backend's own domain.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
 export type ApiConvertResult = {
   rowsCount: number;
   fileName: string;
@@ -50,6 +55,35 @@ function downloadBlob(blob: Blob, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
+async function throwConversionError(response: Response): Promise<never> {
+  const payload = (await response.json().catch(() => null)) as {
+    message?: string;
+    error?: string;
+    code?: string;
+    pagesScanned?: number;
+    totalPages?: number;
+    emptyPages?: number;
+  } | null;
+  const code = payload?.code || payload?.error;
+  const message = payload?.message || payload?.error || "Conversion failed";
+
+  if (code && VALIDATION_ERROR_CODES.has(code)) {
+    throw new ConversionValidationError(code, message, {
+      pagesScanned: payload?.pagesScanned,
+      totalPages: payload?.totalPages,
+      emptyPages: payload?.emptyPages,
+    });
+  }
+
+  throw new Error(message);
+}
+
+const POLL_INTERVAL_MS = 3000;
+
+// Conversion (OCR especially, on a large scanned PDF) can take minutes -- far longer than any
+// reverse proxy will hold a single request open. The backend runs it as a background job: this
+// submits the file, then polls for the result instead of waiting on one long request (which was
+// coming back as a bare 502 once the proxy gave up).
 export async function convertPdfViaApi(
   file: File,
   password = "",
@@ -60,32 +94,26 @@ export async function convertPdfViaApi(
   form.append("scanned", String(scanned));
   form.append("password", password);
 
-  const response = await fetch("/api/convert", {
+  const submitResponse = await fetch(`${API_BASE_URL}/api/convert`, {
     method: "POST",
     body: form,
   });
 
+  if (!submitResponse.ok) {
+    await throwConversionError(submitResponse);
+  }
+
+  const { jobId } = (await submitResponse.json()) as { jobId: string };
+
+  let response: Response;
+  for (;;) {
+    response = await fetch(`${API_BASE_URL}/api/convert/${jobId}`);
+    if (response.status !== 202) break;
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as {
-      message?: string;
-      error?: string;
-      code?: string;
-      pagesScanned?: number;
-      totalPages?: number;
-      emptyPages?: number;
-    } | null;
-    const code = payload?.code || payload?.error;
-    const message = payload?.message || payload?.error || "Conversion failed";
-
-    if (code && VALIDATION_ERROR_CODES.has(code)) {
-      throw new ConversionValidationError(code, message, {
-        pagesScanned: payload?.pagesScanned,
-        totalPages: payload?.totalPages,
-        emptyPages: payload?.emptyPages,
-      });
-    }
-
-    throw new Error(message);
+    await throwConversionError(response);
   }
 
   const blob = await response.blob();

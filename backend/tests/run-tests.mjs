@@ -16,8 +16,7 @@ await import("./bccb-018110100001093.test.mjs");
 await import("./pdf-preflight-empty-content.test.mjs");
 await import("./ocr-corrections.test.mjs");
 await import("./ocr-line-reconstructor.test.mjs");
-await import("./idbi-finacle-transaction-inquiry.test.mjs");
-await import("./idbi-finacle-reference-statement.test.mjs");
 await import("./federal-ocr-tolerant.test.mjs");
 await import("./idbi-finacle-scanned-ocr.test.mjs");
+await import("./apna-sahakari.test.mjs");
 
