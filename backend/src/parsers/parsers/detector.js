@@ -1,7 +1,7 @@
 import { clean } from "./common.js";
 import { isFinacleTransactionInquiryText } from "./finacleOcrParser.js";
 import { isFederalLayoutText } from "./federalParser.js";
-import { isPnbLayoutText } from "./pnbParser.js";
+import { isPnbLayoutText, isPnbTranDateLayoutText } from "./pnbParser.js";
 import { isGreaterBombayLayoutText, isGreaterBombayContinuationText } from "./greaterBombayParser.js";
 
 function detectBank(pdfTextOrLines) {
@@ -75,7 +75,7 @@ function detectBank(pdfTextOrLines) {
     return "union-bank";
   }
 
-  if (isPnbLayoutText(text)) {
+  if (isPnbLayoutText(text) || isPnbTranDateLayoutText(text)) {
     return "pnb";
   }
 

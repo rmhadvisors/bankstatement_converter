@@ -308,9 +308,9 @@ const server = createServer(async (req, res) => {
 
     await serveStatic(url.pathname, res);
   } catch (error) {
-    console.error(error);
-    res.writeHead(500, { "content-type": "text/plain" });
-    res.end("Internal Server Error");
+    console.error(`${req.method} ${req.url} failed:`, error);
+    if (!res.headersSent) res.writeHead(500, { "content-type": "application/json" });
+    res.end(JSON.stringify({ code: "SERVER_ERROR", message: `Server error: ${error?.message || "unknown error"}` }));
   }
 });
 

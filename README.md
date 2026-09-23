@@ -65,6 +65,20 @@ processes on two different platforms:
     (the deployed frontend's URL, plus any Vercel preview-deployment URLs).
   - `OCR_SPACE_API_KEY`
 
+  For an SSH-accessible Hostinger VPS, `.github/workflows/deploy-backend.yml` deploys
+  the backend when changes are pushed to `main`, or when run manually from GitHub
+  Actions. Configure these repository secrets/settings first:
+
+  - Secrets: `HOSTINGER_HOST`, `HOSTINGER_SSH_USER`, `HOSTINGER_SSH_PRIVATE_KEY`,
+    `HOSTINGER_SSH_KNOWN_HOSTS`, and `HOSTINGER_RESTART_COMMAND`.
+  - Variables: `HOSTINGER_DEPLOY_PATH` (absolute backend app directory) and optional
+    `HOSTINGER_SSH_PORT` (defaults to `22`).
+
+  `HOSTINGER_RESTART_COMMAND` must restart the Node process managed on the VPS. Keep
+  the private key out of the repository; add its contents as the GitHub secret. This
+  SSH workflow is for VPS deployments. Hostinger's managed Node.js Web/Cloud hosting
+  should use its GitHub integration in hPanel, which handles builds and restarts.
+
 Each folder has its own `package.json`, `.env.example`, and `.gitignore` and builds/
 runs correctly with the other folder absent — neither depends on files outside its
 own directory. Because the two are on different origins in this deploy, the backend's

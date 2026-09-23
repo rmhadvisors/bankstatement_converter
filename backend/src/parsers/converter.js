@@ -270,15 +270,31 @@ async function convertPdfToStatement(filePath, options = {}) {
   return statement;
 }
 
+// A workbook write can produce bytes that look done (buffer/file has content, no thrown error)
+// but aren't actually a valid xlsx -- e.g. a partial write from a killed/racing process, or a
+// truncated buffer from a stream that closed early. Reopening with the same library used to
+// build it is the cheapest real proof the output is valid: if ExcelJS itself can't parse the
+// bytes back, nothing downstream (Excel included) will either, so fail loudly here rather than
+// handing the caller a file that looks like a success.
+async function verifyWorkbookBuffer(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  if (workbook.worksheets.length === 0) {
+    throw new Error("Generated workbook has no worksheets after reopening it.");
+  }
+}
+
 async function convertPdfToExcelBuffer(filePath, options = {}) {
   const statement = await convertPdfToStatement(filePath, options);
 
   if (statement.accounts) {
     const buffer = await buildMultiAccountWorkbookBuffer(statement.accounts);
+    await verifyWorkbookBuffer(buffer);
     return { buffer, statement };
   }
 
   const buffer = await buildWorkbookBuffer(statement);
+  await verifyWorkbookBuffer(buffer);
 
   return {
     buffer,
@@ -291,10 +307,11 @@ async function convertPdfToExcelFile(filePath, outputPath, options = {}) {
 
   if (statement.accounts) {
     await writeMultiAccountWorkbookFile(statement.accounts, outputPath);
-    return statement;
+  } else {
+    await writeWorkbookFile(statement, outputPath);
   }
 
-  await writeWorkbookFile(statement, outputPath);
+  await verifyWorkbookBuffer(await fsPromises.readFile(outputPath));
 
   return statement;
 }

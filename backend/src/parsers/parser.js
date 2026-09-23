@@ -41,11 +41,17 @@ import { isFinacleTransactionInquiryLayout, parseFinacleTransactions } from "./p
 import { isJanaLayout, parseJanaTransactions } from "./parsers/janaParser.js";
 import { isUnionBankLayout, parseUnionBankTransactions } from "./parsers/unionBankParser.js";
 import { isUnionBankOcrLayout, parseUnionBankOcrTransactions } from "./parsers/unionBankOcrParser.js";
-import { isPnbLayout, parsePnbTransactions } from "./parsers/pnbParser.js";
+import {
+  isPnbLayout,
+  parsePnbTransactions,
+  isPnbTranDateLayout,
+  parsePnbTranDateTransactions,
+} from "./parsers/pnbParser.js";
 import { parsePnbOcrTransactions } from "./parsers/pnbOcrParser.js";
 import { isSbiLayout, parseSbiTransactions } from "./parsers/sbiParser.js";
 import { isSbiOcrLayout, parseSbiOcrTransactions } from "./parsers/sbiOcrParser.js";
 import { isIciciDetailedLayout, parseIciciDetailedTransactions } from "./parsers/iciciDetailedParser.js";
+import { isBccbPassbookLayout, parseBccbPassbookTransactions } from "./parsers/bccbPassbookParser.js";
 import {
   isGreaterBombayLayoutText,
   isGreaterBombayContinuationText,
@@ -1072,7 +1078,16 @@ function parseStatement(extraction) {
   let reviewRows = [];
   let finacleAccountInfo = null;
 
-  if (detectedFormat === "icici-detailed" || isIciciDetailedLayout(lines)) {
+  if (isBccbPassbookLayout(lines)) {
+    detectedFormat = "bccb-passbook";
+    const passbook = parseBccbPassbookTransactions(lines);
+    transactions = passbook.transactions;
+    reviewRows.push(...passbook.flaggedRows);
+    if (passbook.skippedPages.length) {
+      logs.push({ level: "warn", stage: "parse", message: `No passbook rows found on page(s) ${passbook.skippedPages.join(", ")}.` });
+    }
+    for (const message of passbook.chainResets) logs.push({ level: "warn", stage: "parse", message });
+  } else if (detectedFormat === "icici-detailed" || isIciciDetailedLayout(lines)) {
     detectedFormat = "icici-detailed";
     const icici = parseIciciDetailedTransactions(lines);
     transactions = icici.transactions;
@@ -1187,9 +1202,16 @@ function parseStatement(extraction) {
     const greaterBombay = parseGreaterBombayTransactions(lines);
     transactions = greaterBombay.transactions;
     parserPrintedTotals = greaterBombay.printedTotals;
-  } else if (detectedFormat === "pnb" || isPnbLayout(lines)) {
+  } else if (detectedFormat === "pnb" || isPnbLayout(lines) || isPnbTranDateLayout(lines)) {
     detectedFormat = "pnb";
-    transactions = parsePnbTransactions(lines);
+
+    if (isPnbTranDateLayout(lines)) {
+      const pnbTranDate = parsePnbTranDateTransactions(lines);
+      transactions = pnbTranDate.transactions;
+      parserPrintedTotals = pnbTranDate.printedTotals;
+    } else {
+      transactions = parsePnbTransactions(lines);
+    }
 
     // The strict parser above reads each row off real PDF word x-coordinates, which only exist
     // for a native text layer. A scanned PNB statement (this app's own OCR.space pass used
@@ -1280,6 +1302,7 @@ function parseStatement(extraction) {
   if (
     detectedFormat !== "icici-detailed" &&
     detectedFormat !== "bccb-ledger" &&
+    detectedFormat !== "bccb-passbook" &&
     detectedFormat !== "apna-sahakari" &&
     !(detectedFormat === "columnar-ocr" && isAxisOcrLayout(lines))
   ) {

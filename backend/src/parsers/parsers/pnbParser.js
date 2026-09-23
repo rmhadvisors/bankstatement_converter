@@ -172,4 +172,197 @@ function parsePnbTransactions(lines) {
   });
 }
 
-export { isPnbLayout, isPnbLayoutText, parsePnbTransactions };
+// A second, distinct PNB export layout ("Tran Date | Withdrawal | Deposit | Balance | Alpha |
+// CHQ. NO. | Narration | Additional Info") seen on statements generated via PNB ONE. Unlike the
+// layout above, Withdrawal/Deposit are separate columns disambiguated only by x-position (each
+// row prints just one of the two), and Balance carries its Cr/Dr suffix glued to the same text
+// item. Narration also wraps across up to two visual lines *per row*, and -- unlike a normal
+// top-to-bottom continuation -- the wrapped line can appear either directly above or directly
+// below the row's own date/amount line, because the row's numeric fields sit on the row's
+// bottom line while narration text top-aligns and overflows upward into it.
+const TRAN_DATE_RE = /^\d{2}-\d{2}-\d{4}$/;
+
+function isPnbTranDateHeaderText(text) {
+  return /Tran\s*Date\s+Withdrawal\s+Deposit\s+Balance\s+Alpha\s+CHQ\.?\s*NO\.?\s+Narration/i.test(text);
+}
+
+function isPnbTranDateLayoutText(text) {
+  return /IFSC\s*Code\s*:\s*PUNB/i.test(text) && isPnbTranDateHeaderText(text);
+}
+
+function isPnbTranDateLayout(lines) {
+  const text = lines
+    .slice(0, 80)
+    .map((line) => clean(line.text || line))
+    .join("\n");
+
+  return isPnbTranDateLayoutText(text);
+}
+
+function detectTranDateColumns(lines) {
+  for (const entry of lines.slice(0, 80)) {
+    const text = clean(entry.text || entry);
+    if (!isPnbTranDateHeaderText(text)) continue;
+
+    const findX = (pattern) => {
+      const item = (entry.items || []).find((candidate) => pattern.test(clean(candidate.text)));
+      return item ? item.x : null;
+    };
+
+    return {
+      withdrawal: findX(/^Withdrawal$/i) ?? 84,
+      deposit: findX(/^Deposit$/i) ?? 146,
+    };
+  }
+
+  return { withdrawal: 84, deposit: 146 };
+}
+
+function isTranDateRowStart(entry) {
+  const items = entry.items || [];
+  return items.length > 0 && TRAN_DATE_RE.test(clean(items[0].text));
+}
+
+function isTranDateNoise(text) {
+  return (
+    !text ||
+    /^Page Total\b/i.test(text) ||
+    /^Grand\b/i.test(text) ||
+    /^Page \d+ of \d+/i.test(text) ||
+    /^Disclaimer:/i.test(text) ||
+    /^Statement of Account No/i.test(text) ||
+    /^Printed By:/i.test(text) ||
+    /^DATE:\s*\w+ \d{1,2}, \d{4}/i.test(text) ||
+    /^Customer Name:/i.test(text) ||
+    /^CKYC No\.?:/i.test(text) ||
+    /^Customer Address:/i.test(text) ||
+    /^Branch Address:/i.test(text) ||
+    /^Branch Contact No\.?:/i.test(text) ||
+    /^Customer Care No\.?:/i.test(text) ||
+    /^IFSC Code:/i.test(text) ||
+    /^Acct Currency:/i.test(text) ||
+    /^Statement for Period/i.test(text)
+  );
+}
+
+function parsePnbTranDateRow(entry, columns) {
+  // Balance prints as one glued text item ("40610.90 Cr."); common.js's parseAmount strips
+  // "Cr"/"Dr" but not the trailing period, leaving "40610.90 ." which fails Number() and drops
+  // the item entirely -- strip the period here before any amount parsing runs.
+  const items = (entry.items || []).map((item) => ({
+    ...item,
+    text: clean(item.text).replace(/\b(Cr|Dr)\.\s*$/i, "$1"),
+  }));
+  const dateItem = items[0];
+  const date = parseDate(dateItem?.text);
+  if (!date) return null;
+
+  const amounts = amountItems(items);
+  const balanceItem = amounts.find((item) => /(cr|dr)$/i.test(item.text));
+  const amountItem = amounts.find((item) => item !== balanceItem);
+  if (!amountItem || !balanceItem) return null;
+
+  const type = /dr$/i.test(balanceItem.text) ? "Dr" : "Cr";
+  const isWithdrawal =
+    Math.abs(amountItem.x - columns.withdrawal) <= Math.abs(amountItem.x - columns.deposit);
+
+  // amountItems() returns freshly spread objects, not the same references as `items`, so
+  // exclude by x-position (unique per column on a given row) rather than by identity.
+  const particulars = clean(
+    items
+      .filter((item) => item.x !== dateItem.x && item.x !== amountItem.x && item.x !== balanceItem.x)
+      .map((item) => item.text)
+      .join(" "),
+  );
+
+  return {
+    date,
+    particulars,
+    chequeNo: null,
+    withdrawal: isWithdrawal ? Math.abs(amountItem.value) : null,
+    deposit: isWithdrawal ? null : Math.abs(amountItem.value),
+    balance: roundMoney(balanceItem.value),
+    type,
+  };
+}
+
+function parseGrandTotals(lines) {
+  for (const entry of lines) {
+    const text = clean(entry.text || entry);
+    if (!/^Grand\b/i.test(text)) continue;
+
+    const amounts = amountItems(entry.items || []);
+    if (amounts.length >= 2) {
+      return { withdrawal: Math.abs(amounts[0].value), deposit: Math.abs(amounts[1].value) };
+    }
+  }
+
+  return null;
+}
+
+function parsePnbTranDateTransactions(lines) {
+  const columns = detectTranDateColumns(lines);
+  const transactions = [];
+  let started = false;
+  let pendingBefore = [];
+  // Set to the most recently pushed row whenever that row's own line carried no narration text
+  // (a strong signal its narration wraps to a second line) -- the very next standalone line, if
+  // any, is that row's trailing narration fragment rather than the following row's leading one.
+  let awaitingAfter = null;
+
+  for (const entry of lines) {
+    const text = clean(entry.text || entry);
+    if (!text) continue;
+
+    if (isPnbTranDateHeaderText(text)) {
+      started = true;
+      continue;
+    }
+
+    if (!started) continue;
+
+    if (isTranDateNoise(text)) {
+      awaitingAfter = null;
+      continue;
+    }
+
+    if (isTranDateRowStart(entry)) {
+      const row = parsePnbTranDateRow(entry, columns);
+      if (!row) {
+        awaitingAfter = null;
+        continue;
+      }
+
+      const hadInlineNarration = Boolean(row.particulars);
+      if (pendingBefore.length) {
+        row.particulars = clean(`${pendingBefore.join(" ")} ${row.particulars}`);
+        pendingBefore = [];
+      }
+
+      transactions.push(row);
+      awaitingAfter = hadInlineNarration ? null : row;
+      continue;
+    }
+
+    if (awaitingAfter) {
+      awaitingAfter.particulars = clean(`${awaitingAfter.particulars} ${text}`);
+      awaitingAfter = null;
+    } else {
+      pendingBefore.push(text);
+    }
+  }
+
+  return {
+    transactions: transactions.map((row) => ({ ...row, particulars: row.particulars || "TRANSACTION" })),
+    printedTotals: parseGrandTotals(lines),
+  };
+}
+
+export {
+  isPnbLayout,
+  isPnbLayoutText,
+  parsePnbTransactions,
+  isPnbTranDateLayout,
+  isPnbTranDateLayoutText,
+  parsePnbTranDateTransactions,
+};

@@ -26,3 +26,7 @@ tmp/
 *.njsproj
 *.sln
 *.sw?
+
+# Local SSH deploy credentials (store the private key in GitHub Actions secrets instead).
+/itr_deploy_key
+/itr_deploy_key.pub

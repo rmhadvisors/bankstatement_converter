@@ -65,7 +65,12 @@ async function throwConversionError(response: Response): Promise<never> {
     emptyPages?: number;
   } | null;
   const code = payload?.code || payload?.error;
-  const message = payload?.message || payload?.error || "Conversion failed";
+  // No JSON body means the backend never answered (crashed, restarted, or a proxy/CORS error
+  // page) -- say so with the status instead of a bare "Conversion failed".
+  const message =
+    payload?.message ||
+    payload?.error ||
+    `Conversion failed (HTTP ${response.status}${response.status >= 500 ? ": the server stopped responding or crashed, please retry" : ""})`;
 
   if (code && VALIDATION_ERROR_CODES.has(code)) {
     throw new ConversionValidationError(code, message, {

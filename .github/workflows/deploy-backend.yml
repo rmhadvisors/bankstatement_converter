@@ -1,0 +1,97 @@
+name: Deploy backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Hostinger over SSH
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.HOSTINGER_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo "Missing HOSTINGER_SSH_PRIVATE_KEY secret" >&2; exit 1; }
+          test -n "$SSH_KNOWN_HOSTS" || { echo "Missing HOSTINGER_SSH_KNOWN_HOSTS secret" >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/hostinger_deploy_key"
+          chmod 600 "$HOME/.ssh/hostinger_deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Upload backend source
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          SSH_PORT: ${{ vars.HOSTINGER_SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.HOSTINGER_DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER DEPLOY_PATH; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing GitHub setting/secret for $name" >&2
+              exit 1
+            fi
+          done
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || { echo "HOSTINGER_SSH_PORT must be numeric" >&2; exit 1; }
+          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9_./-]+$ && "$DEPLOY_PATH" != "/" ]] || {
+            echo "HOSTINGER_DEPLOY_PATH must be an absolute non-root path without spaces" >&2
+            exit 1
+          }
+
+          ssh_args=(-i "$HOME/.ssh/hostinger_deploy_key" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes)
+          remote="$SSH_USER@$SSH_HOST"
+          ssh "${ssh_args[@]}" "$remote" "mkdir -p -- '$DEPLOY_PATH'"
+          rsync -az \
+            -e "ssh -i $HOME/.ssh/hostinger_deploy_key -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes" \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='node_modules/' \
+            --exclude='tmp/' \
+            --exclude='tests/' \
+            backend/ "$remote:$DEPLOY_PATH/"
+
+      - name: Install production dependencies and restart backend
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          SSH_PORT: ${{ vars.HOSTINGER_SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.HOSTINGER_DEPLOY_PATH }}
+          RESTART_COMMAND: ${{ secrets.HOSTINGER_RESTART_COMMAND }}
+        run: |
+          set -euo pipefail
+          test -n "$RESTART_COMMAND" || {
+            echo "Missing HOSTINGER_RESTART_COMMAND secret; set it to your server's backend restart command" >&2
+            exit 1
+          }
+          printf -v quoted_path '%q' "$DEPLOY_PATH"
+          printf -v quoted_restart '%q' "$RESTART_COMMAND"
+          ssh \
+            -i "$HOME/.ssh/hostinger_deploy_key" \
+            -p "$SSH_PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "cd -- $quoted_path && npm install --omit=dev --no-audit --no-fund && bash -lc $quoted_restart"
