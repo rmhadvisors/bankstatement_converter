@@ -33,15 +33,20 @@ jobs:
           set -euo pipefail
           install -m 700 -d "$HOME/.ssh"
 
-          # The secret is base64-encoded on GitHub
-          printf '%s' "$SSH_PRIVATE_KEY" | base64 -d > "$HOME/.ssh/hostinger_deploy_key"
+          # Accept either a raw private key or a base64-encoded one
+          if printf '%s' "$SSH_PRIVATE_KEY" | grep -q "BEGIN .*PRIVATE KEY"; then
+            printf '%s' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/hostinger_deploy_key"
+          else
+            printf '%s' "$SSH_PRIVATE_KEY" | base64 -d > "$HOME/.ssh/hostinger_deploy_key"
+          fi
+
           chmod 600 "$HOME/.ssh/hostinger_deploy_key"
 
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
 
-          # Validate the key before SSH
-          ssh-keygen -y -f "$HOME/.ssh/hostinger_deploy_key" >/dev/null
+          # Validate the key before SSH use
+          ssh-keygen -y -f "$HOME/.ssh/hostinger_deploy_key" > /dev/null
 
       - name: Upload backend source
         shell: bash
@@ -52,12 +57,14 @@ jobs:
           DEPLOY_PATH: ${{ vars.HOSTINGER_DEPLOY_PATH }}
         run: |
           set -euo pipefail
+
           for name in SSH_HOST SSH_USER DEPLOY_PATH; do
             if [[ -z "${!name}" ]]; then
               echo "Missing GitHub setting/secret for $name" >&2
               exit 1
             fi
           done
+
           [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || { echo "HOSTINGER_SSH_PORT must be numeric" >&2; exit 1; }
           [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9_./-]+$ && "$DEPLOY_PATH" != "/" ]] || {
             echo "HOSTINGER_DEPLOY_PATH must be an absolute non-root path without spaces" >&2
@@ -66,7 +73,9 @@ jobs:
 
           ssh_args=(-i "$HOME/.ssh/hostinger_deploy_key" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes)
           remote="$SSH_USER@$SSH_HOST"
+
           ssh "${ssh_args[@]}" "$remote" "mkdir -p -- '$DEPLOY_PATH'"
+
           rsync -az \
             -e "ssh -i $HOME/.ssh/hostinger_deploy_key -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes" \
             --exclude='.env' \
@@ -86,12 +95,15 @@ jobs:
           RESTART_COMMAND: ${{ secrets.HOSTINGER_RESTART_COMMAND }}
         run: |
           set -euo pipefail
+
           test -n "$RESTART_COMMAND" || {
             echo "Missing HOSTINGER_RESTART_COMMAND secret; set it to your server's backend restart command" >&2
             exit 1
           }
+
           printf -v quoted_path '%q' "$DEPLOY_PATH"
           printf -v quoted_restart '%q' "$RESTART_COMMAND"
+
           ssh \
             -i "$HOME/.ssh/hostinger_deploy_key" \
             -p "$SSH_PORT" \
