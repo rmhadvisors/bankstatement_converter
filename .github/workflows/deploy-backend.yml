@@ -46,7 +46,9 @@ jobs:
           chmod 600 "$HOME/.ssh/known_hosts"
 
           # Validate the key before SSH use
-          ssh-keygen -y -f "$HOME/.ssh/hostinger_deploy_key" > /dev/null
+          ssh-keygen -y -f "$HOME/.ssh/hostinger_deploy_key" > "$HOME/.ssh/hostinger_deploy_key.pub"
+          echo "Deploy key fingerprint (must match the public key installed on Hostinger):"
+          ssh-keygen -lf "$HOME/.ssh/hostinger_deploy_key.pub"
 
       - name: Upload backend source
         shell: bash
@@ -71,13 +73,13 @@ jobs:
             exit 1
           }
 
-          ssh_args=(-i "$HOME/.ssh/hostinger_deploy_key" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes)
+          ssh_args=(-i "$HOME/.ssh/hostinger_deploy_key" -p "$SSH_PORT" -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o BatchMode=yes -o StrictHostKeyChecking=yes)
           remote="$SSH_USER@$SSH_HOST"
 
           ssh "${ssh_args[@]}" "$remote" "mkdir -p -- '$DEPLOY_PATH'"
 
           rsync -az \
-            -e "ssh -i $HOME/.ssh/hostinger_deploy_key -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes" \
+            -e "ssh -i $HOME/.ssh/hostinger_deploy_key -p $SSH_PORT -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o BatchMode=yes -o StrictHostKeyChecking=yes" \
             --exclude='.env' \
             --exclude='.env.*' \
             --exclude='node_modules/' \
@@ -107,6 +109,8 @@ jobs:
           ssh \
             -i "$HOME/.ssh/hostinger_deploy_key" \
             -p "$SSH_PORT" \
+            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=publickey \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
