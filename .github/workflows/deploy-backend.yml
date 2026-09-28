@@ -31,13 +31,21 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          test -n "$SSH_PRIVATE_KEY" || { echo "Missing HOSTINGER_SSH_PRIVATE_KEY secret" >&2; exit 1; }
-          test -n "$SSH_KNOWN_HOSTS" || { echo "Missing HOSTINGER_SSH_KNOWN_HOSTS secret" >&2; exit 1; }
+
           install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/hostinger_deploy_key"
+
+          # If the secret is the raw private key, write it directly.
+          printf '%s' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/hostinger_deploy_key"
+
+          # If you stored a base64-encoded value instead, use:
+          # printf '%s' "$SSH_PRIVATE_KEY" | base64 -d > "$HOME/.ssh/hostinger_deploy_key"
+
           chmod 600 "$HOME/.ssh/hostinger_deploy_key"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
+
+          # Validate the key before connecting
+          ssh-keygen -y -f "$HOME/.ssh/hostinger_deploy_key" >/dev/null
 
       - name: Upload backend source
         shell: bash
