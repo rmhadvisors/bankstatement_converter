@@ -32,15 +32,15 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d "$HOME/.ssh"
-          
-          # Decode base64-encoded private key
+
+          # The secret is base64-encoded on GitHub
           printf '%s' "$SSH_PRIVATE_KEY" | base64 -d > "$HOME/.ssh/hostinger_deploy_key"
           chmod 600 "$HOME/.ssh/hostinger_deploy_key"
-          
+
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
-          
-          # Validate the key
+
+          # Validate the key before SSH
           ssh-keygen -y -f "$HOME/.ssh/hostinger_deploy_key" >/dev/null
 
       - name: Upload backend source
