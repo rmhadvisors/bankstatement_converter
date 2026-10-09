@@ -20,4 +20,5 @@ await import("./ocr-line-reconstructor.test.mjs");
 await import("./federal-ocr-tolerant.test.mjs");
 await import("./idbi-finacle-scanned-ocr.test.mjs");
 await import("./apna-sahakari.test.mjs");
+await import("./icici-0836-scanned.test.mjs");
 

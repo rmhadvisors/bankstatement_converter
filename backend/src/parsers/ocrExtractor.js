@@ -59,7 +59,9 @@ function buildLinesFromParsedResult(parsedResult, pageNumber) {
   if (words.length > 0) {
     return reconstructLinesFromWords(words).map((line) => ({
       pageNumber,
-      text: line.text,
+      // OCR.space returns "01-10-2024" as three words "01 - 10 - 2024" (seen on ICICI scans);
+      // rejoin them so the date regexes in every parser still match.
+      text: line.text.replace(/\b(\d{1,2}) ?([-/.]) ?(\d{1,2}) ?\2 ?(\d{2,4})\b/g, "$1$2$3$2$4"),
       // Kept for parsers (e.g. bobWorldAppParser.js) that band lines into sections by vertical
       // position; reconstructLinesFromWords already computed these per reconstructed row.
       top: line.y,
@@ -186,7 +188,35 @@ function preprocessImageData(imageData) {
     data[i + 2] = value;
   }
 
+  removeRuleLines(imageData);
   return imageData;
+}
+
+// Table grid lines (e.g. ICICI's boxed "Date | Particulars | ... | Balance" table) make Tesseract
+// merge cells into garbage like "[05 02024 [wer Eso TRG ...". No glyph at 300 DPI has a straight
+// black run longer than ~0.3", so whiten every horizontal/vertical run at least that long.
+// ponytail: plain run-length rule removal; a solid black block (photo, stamp) is erased too, which
+// is fine for statements. Upgrade path is morphological opening if that ever matters.
+const RULE_MIN_RUN = Math.round(LOCAL_OCR_TARGET_DPI * 0.3);
+
+function removeRuleLines({ data, width, height }) {
+  const isBlack = (x, y) => data[(y * width + x) * 4] === 0;
+  const rule = new Uint8Array(width * height);
+  const scan = (outer, inner, idx) => {
+    for (let o = 0; o < outer; o += 1) {
+      let start = 0;
+      for (let i = 0; i <= inner; i += 1) {
+        if (i < inner && isBlack(...idx(o, i))) continue;
+        if (i - start >= RULE_MIN_RUN) for (let k = start; k < i; k += 1) { const [x, y] = idx(o, k); rule[y * width + x] = 1; }
+        start = i + 1;
+      }
+    }
+  };
+  scan(height, width, (y, x) => [x, y]);
+  scan(width, height, (x, y) => [x, y]);
+  for (let p = 0; p < rule.length; p += 1) {
+    if (rule[p]) data[p * 4] = data[p * 4 + 1] = data[p * 4 + 2] = 255;
+  }
 }
 
 async function loadCanvasAndPdfjs() {
@@ -511,4 +541,4 @@ async function extractScannedFile(filePath) {
   return result;
 }
 
-export { extractScannedFile, splitPdfPages, requestOcr };
+export { extractScannedFile, splitPdfPages, requestOcr, buildLinesFromParsedResult };

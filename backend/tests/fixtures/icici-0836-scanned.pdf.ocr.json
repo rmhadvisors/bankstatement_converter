@@ -1,0 +1,5411 @@
+{
+  "pageCount": 1,
+  "pages": [
+    {
+      "pageNumber": 1,
+      "lines": [
+        {
+          "pageNumber": 1,
+          "text": "Page 1",
+          "top": 35.5,
+          "left": 2286,
+          "items": [
+            {
+              "x": 2286,
+              "y": 35.5,
+              "text": "Page",
+              "corrected": false
+            },
+            {
+              "x": 2338,
+              "y": 35.5,
+              "text": "1",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "fICICI",
+          "top": 137,
+          "left": 435.5,
+          "items": [
+            {
+              "x": 435.5,
+              "y": 137,
+              "text": "fICICI",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Bank",
+          "top": 146,
+          "left": 860.5,
+          "items": [
+            {
+              "x": 860.5,
+              "y": 146,
+              "text": "Bank",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "[ iCRM_887411_10.129.54.208_2025102994350 ]",
+          "top": 288,
+          "left": 518.5,
+          "items": [
+            {
+              "x": 518.5,
+              "y": 288,
+              "text": "[",
+              "corrected": false
+            },
+            {
+              "x": 518.5,
+              "y": 288,
+              "text": "iCRM_887411_10.129.54.208_2025102994350",
+              "corrected": false
+            },
+            {
+              "x": 910.5,
+              "y": 288,
+              "text": "]",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Your Details With Us :",
+          "top": 482,
+          "left": 183.5,
+          "items": [
+            {
+              "x": 183.5,
+              "y": 482,
+              "text": "Your",
+              "corrected": false
+            },
+            {
+              "x": 286.5,
+              "y": 482,
+              "text": "Details",
+              "corrected": false
+            },
+            {
+              "x": 390.5,
+              "y": 482,
+              "text": "With",
+              "corrected": false
+            },
+            {
+              "x": 469.5,
+              "y": 482,
+              "text": "Us",
+              "corrected": false
+            },
+            {
+              "x": 469.5,
+              "y": 482,
+              "text": ":",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "MR.ROHAN A THAKUR",
+          "top": 535.5,
+          "left": 240,
+          "items": [
+            {
+              "x": 240,
+              "y": 535.5,
+              "text": "MR.ROHAN",
+              "corrected": false
+            },
+            {
+              "x": 355.5,
+              "y": 535.5,
+              "text": "A",
+              "corrected": false
+            },
+            {
+              "x": 452,
+              "y": 535.5,
+              "text": "THAKUR",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "108 - FIRST FLOOR , BLDG NO - 1 , VASAI W ,",
+          "top": 589,
+          "left": 231,
+          "items": [
+            {
+              "x": 231,
+              "y": 589,
+              "text": "108",
+              "corrected": false
+            },
+            {
+              "x": 231,
+              "y": 589,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 231,
+              "y": 589,
+              "text": "FIRST",
+              "corrected": false
+            },
+            {
+              "x": 437.5,
+              "y": 589,
+              "text": "FLOOR",
+              "corrected": false
+            },
+            {
+              "x": 437.5,
+              "y": 589,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 437.5,
+              "y": 589,
+              "text": "BLDG",
+              "corrected": false
+            },
+            {
+              "x": 660.5,
+              "y": 589,
+              "text": "NO",
+              "corrected": false
+            },
+            {
+              "x": 660.5,
+              "y": 589,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 660.5,
+              "y": 589,
+              "text": "1",
+              "corrected": false
+            },
+            {
+              "x": 660.5,
+              "y": 589,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 660.5,
+              "y": 589,
+              "text": "VASAI",
+              "corrected": false
+            },
+            {
+              "x": 796.5,
+              "y": 589,
+              "text": "W",
+              "corrected": false
+            },
+            {
+              "x": 796.5,
+              "y": 589,
+              "text": ",",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "SAGAR SHET , SAGAR PARK CHS LTD ,",
+          "top": 642.5,
+          "left": 204.5,
+          "items": [
+            {
+              "x": 204.5,
+              "y": 642.5,
+              "text": "SAGAR",
+              "corrected": false
+            },
+            {
+              "x": 386.5,
+              "y": 642.5,
+              "text": "SHET",
+              "corrected": false
+            },
+            {
+              "x": 386.5,
+              "y": 642.5,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 386.5,
+              "y": 642.5,
+              "text": "SAGAR",
+              "corrected": false
+            },
+            {
+              "x": 558,
+              "y": 642.5,
+              "text": "PARK",
+              "corrected": false
+            },
+            {
+              "x": 650,
+              "y": 642.5,
+              "text": "CHS",
+              "corrected": false
+            },
+            {
+              "x": 735,
+              "y": 642.5,
+              "text": "LTD",
+              "corrected": false
+            },
+            {
+              "x": 735,
+              "y": 642.5,
+              "text": ",",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "1800 1080",
+          "top": 675.25,
+          "left": 2046.5,
+          "items": [
+            {
+              "x": 2046.5,
+              "y": 675,
+              "text": "1800",
+              "corrected": false
+            },
+            {
+              "x": 2159.5,
+              "y": 675.5,
+              "text": "1080",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "VASAI",
+          "top": 691,
+          "left": 201,
+          "items": [
+            {
+              "x": 201,
+              "y": 691,
+              "text": "VASAI",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "MAHARASHTRA - INDIA - 401201",
+          "top": 742,
+          "left": 282.5,
+          "items": [
+            {
+              "x": 282.5,
+              "y": 742,
+              "text": "MAHARASHTRA",
+              "corrected": false
+            },
+            {
+              "x": 432.5,
+              "y": 742,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 498,
+              "y": 742,
+              "text": "INDIA",
+              "corrected": false
+            },
+            {
+              "x": 563.5,
+              "y": 742,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 641.5,
+              "y": 742,
+              "text": "401201",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Your Base Branch : ICICI Bank Ltd , First Floor Jewel Developers Papdi Naka , Papdi Bangli Road , Near Catholic Bassein Co op Bank , Vasai west - 401207",
+          "top": 785.5,
+          "left": 740.5,
+          "items": [
+            {
+              "x": 740.5,
+              "y": 785.5,
+              "text": "Your",
+              "corrected": false
+            },
+            {
+              "x": 801,
+              "y": 785.5,
+              "text": "Base",
+              "corrected": false
+            },
+            {
+              "x": 878.5,
+              "y": 785.5,
+              "text": "Branch",
+              "corrected": false
+            },
+            {
+              "x": 878.5,
+              "y": 785.5,
+              "text": ":",
+              "corrected": false
+            },
+            {
+              "x": 954,
+              "y": 785.5,
+              "text": "ICICI",
+              "corrected": false
+            },
+            {
+              "x": 1012,
+              "y": 785.5,
+              "text": "Bank",
+              "corrected": false
+            },
+            {
+              "x": 1066,
+              "y": 785.5,
+              "text": "Ltd",
+              "corrected": false
+            },
+            {
+              "x": 1066,
+              "y": 785.5,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 1116,
+              "y": 785.5,
+              "text": "First",
+              "corrected": false
+            },
+            {
+              "x": 1171,
+              "y": 785.5,
+              "text": "Floor",
+              "corrected": false
+            },
+            {
+              "x": 1235,
+              "y": 785.5,
+              "text": "Jewel",
+              "corrected": false
+            },
+            {
+              "x": 1331,
+              "y": 785.5,
+              "text": "Developers",
+              "corrected": false
+            },
+            {
+              "x": 1428,
+              "y": 785.5,
+              "text": "Papdi",
+              "corrected": false
+            },
+            {
+              "x": 1529,
+              "y": 785.5,
+              "text": "Naka",
+              "corrected": false
+            },
+            {
+              "x": 1529,
+              "y": 785.5,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 1529,
+              "y": 785.5,
+              "text": "Papdi",
+              "corrected": false
+            },
+            {
+              "x": 1634,
+              "y": 785.5,
+              "text": "Bangli",
+              "corrected": false
+            },
+            {
+              "x": 1732,
+              "y": 785.5,
+              "text": "Road",
+              "corrected": false
+            },
+            {
+              "x": 1732,
+              "y": 785.5,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 1732,
+              "y": 785.5,
+              "text": "Near",
+              "corrected": false
+            },
+            {
+              "x": 1838.5,
+              "y": 785.5,
+              "text": "Catholic",
+              "corrected": false
+            },
+            {
+              "x": 1929.5,
+              "y": 785.5,
+              "text": "Bassein",
+              "corrected": false
+            },
+            {
+              "x": 1991.5,
+              "y": 785.5,
+              "text": "Co",
+              "corrected": false
+            },
+            {
+              "x": 2024.5,
+              "y": 785.5,
+              "text": "op",
+              "corrected": false
+            },
+            {
+              "x": 2075,
+              "y": 785.5,
+              "text": "Bank",
+              "corrected": false
+            },
+            {
+              "x": 2075,
+              "y": 785.5,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 2141,
+              "y": 785.5,
+              "text": "Vasai",
+              "corrected": false
+            },
+            {
+              "x": 2201,
+              "y": 785.5,
+              "text": "west",
+              "corrected": false
+            },
+            {
+              "x": 2238,
+              "y": 785.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 2291,
+              "y": 785.5,
+              "text": "401207",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Summary of Account as on 31-12-2024",
+          "top": 912.5,
+          "left": 981.5,
+          "items": [
+            {
+              "x": 981.5,
+              "y": 912.5,
+              "text": "Summary",
+              "corrected": false
+            },
+            {
+              "x": 1091.5,
+              "y": 912.5,
+              "text": "of",
+              "corrected": false
+            },
+            {
+              "x": 1196.5,
+              "y": 912.5,
+              "text": "Account",
+              "corrected": false
+            },
+            {
+              "x": 1301.5,
+              "y": 912.5,
+              "text": "as",
+              "corrected": false
+            },
+            {
+              "x": 1352.5,
+              "y": 912.5,
+              "text": "on",
+              "corrected": false
+            },
+            {
+              "x": 1483.5,
+              "y": 912.5,
+              "text": "31",
+              "corrected": false
+            },
+            {
+              "x": 1483.5,
+              "y": 912.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 1483.5,
+              "y": 912.5,
+              "text": "12",
+              "corrected": false
+            },
+            {
+              "x": 1483.5,
+              "y": 912.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 1483.5,
+              "y": 912.5,
+              "text": "2024",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "I . Operative Account in INR",
+          "top": 1009.5,
+          "left": 1006,
+          "items": [
+            {
+              "x": 1006,
+              "y": 1009.5,
+              "text": "I",
+              "corrected": false
+            },
+            {
+              "x": 1006,
+              "y": 1009.5,
+              "text": ".",
+              "corrected": false
+            },
+            {
+              "x": 1113.5,
+              "y": 1009.5,
+              "text": "Operative",
+              "corrected": false
+            },
+            {
+              "x": 1286,
+              "y": 1009.5,
+              "text": "Account",
+              "corrected": false
+            },
+            {
+              "x": 1386,
+              "y": 1009.5,
+              "text": "in",
+              "corrected": false
+            },
+            {
+              "x": 1446,
+              "y": 1009.5,
+              "text": "INR",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Type of Account Account Number Balance ( INR ) MICR IFSC Nomination",
+          "top": 1101.7916666666667,
+          "left": 272.5,
+          "items": [
+            {
+              "x": 272.5,
+              "y": 1104.5,
+              "text": "Type",
+              "corrected": false
+            },
+            {
+              "x": 331.5,
+              "y": 1102.5,
+              "text": "of",
+              "corrected": false
+            },
+            {
+              "x": 421.5,
+              "y": 1101,
+              "text": "Account",
+              "corrected": false
+            },
+            {
+              "x": 757,
+              "y": 1101.5,
+              "text": "Account",
+              "corrected": false
+            },
+            {
+              "x": 890.5,
+              "y": 1101.5,
+              "text": "Number",
+              "corrected": false
+            },
+            {
+              "x": 1202,
+              "y": 1101.5,
+              "text": "Balance",
+              "corrected": false
+            },
+            {
+              "x": 1307,
+              "y": 1101.5,
+              "text": "(",
+              "corrected": false
+            },
+            {
+              "x": 1307,
+              "y": 1101.5,
+              "text": "INR",
+              "corrected": false
+            },
+            {
+              "x": 1356,
+              "y": 1101.5,
+              "text": ")",
+              "corrected": false
+            },
+            {
+              "x": 1585,
+              "y": 1101.5,
+              "text": "MICR",
+              "corrected": false
+            },
+            {
+              "x": 1870,
+              "y": 1101.5,
+              "text": "IFSC",
+              "corrected": false
+            },
+            {
+              "x": 2180.5,
+              "y": 1101.5,
+              "text": "Nomination",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Savings 002201510836 8,621.99 Cr 400229233 ICIC0003515 Registered",
+          "top": 1161.5,
+          "left": 361.5,
+          "items": [
+            {
+              "x": 361.5,
+              "y": 1163.5,
+              "text": "Savings",
+              "corrected": false
+            },
+            {
+              "x": 820,
+              "y": 1159.5,
+              "text": "002201510836",
+              "corrected": false
+            },
+            {
+              "x": 1346,
+              "y": 1162.5,
+              "text": "8,621.99",
+              "corrected": false
+            },
+            {
+              "x": 1429,
+              "y": 1163.5,
+              "text": "Cr",
+              "corrected": false
+            },
+            {
+              "x": 1587,
+              "y": 1159.5,
+              "text": "400229233",
+              "corrected": false
+            },
+            {
+              "x": 1867,
+              "y": 1159.5,
+              "text": "ICIC0003515",
+              "corrected": false
+            },
+            {
+              "x": 2180.5,
+              "y": 1162.5,
+              "text": "Registered",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "TOTAL 8,621.99 Cr",
+          "top": 1218.5,
+          "left": 1001.5,
+          "items": [
+            {
+              "x": 1001.5,
+              "y": 1218.5,
+              "text": "TOTAL",
+              "corrected": false
+            },
+            {
+              "x": 1346,
+              "y": 1219.5,
+              "text": "8,621.99",
+              "corrected": false
+            },
+            {
+              "x": 1429,
+              "y": 1217.5,
+              "text": "Cr",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Statement of transactions in Account number : 002201510836 in INR For the period 01-10-2024 To 31-12-2024",
+          "top": 1374,
+          "left": 370,
+          "items": [
+            {
+              "x": 370,
+              "y": 1374,
+              "text": "Statement",
+              "corrected": false
+            },
+            {
+              "x": 484,
+              "y": 1374,
+              "text": "of",
+              "corrected": false
+            },
+            {
+              "x": 623.5,
+              "y": 1374,
+              "text": "transactions",
+              "corrected": false
+            },
+            {
+              "x": 763,
+              "y": 1374,
+              "text": "in",
+              "corrected": false
+            },
+            {
+              "x": 864.5,
+              "y": 1374,
+              "text": "Account",
+              "corrected": false
+            },
+            {
+              "x": 1022.5,
+              "y": 1374,
+              "text": "number",
+              "corrected": false
+            },
+            {
+              "x": 1022.5,
+              "y": 1374,
+              "text": ":",
+              "corrected": false
+            },
+            {
+              "x": 1231,
+              "y": 1374,
+              "text": "002201510836",
+              "corrected": false
+            },
+            {
+              "x": 1384,
+              "y": 1374,
+              "text": "in",
+              "corrected": false
+            },
+            {
+              "x": 1445,
+              "y": 1374,
+              "text": "INR",
+              "corrected": false
+            },
+            {
+              "x": 1516.5,
+              "y": 1374,
+              "text": "For",
+              "corrected": false
+            },
+            {
+              "x": 1584.5,
+              "y": 1374,
+              "text": "the",
+              "corrected": false
+            },
+            {
+              "x": 1680.5,
+              "y": 1374,
+              "text": "period",
+              "corrected": false
+            },
+            {
+              "x": 1842.5,
+              "y": 1374,
+              "text": "01",
+              "corrected": false
+            },
+            {
+              "x": 1842.5,
+              "y": 1374,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 1842.5,
+              "y": 1374,
+              "text": "10",
+              "corrected": false
+            },
+            {
+              "x": 1842.5,
+              "y": 1374,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 1842.5,
+              "y": 1374,
+              "text": "2024",
+              "corrected": false
+            },
+            {
+              "x": 1971,
+              "y": 1374,
+              "text": "To",
+              "corrected": false
+            },
+            {
+              "x": 2099.5,
+              "y": 1374,
+              "text": "31",
+              "corrected": false
+            },
+            {
+              "x": 2099.5,
+              "y": 1374,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 2099.5,
+              "y": 1374,
+              "text": "12",
+              "corrected": false
+            },
+            {
+              "x": 2099.5,
+              "y": 1374,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 2099.5,
+              "y": 1374,
+              "text": "2024",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Date Particulars Chq.No . Withdrawals Deposits Autosweep Reverse Sweep Balance ( INR )",
+          "top": 1525.3076923076924,
+          "left": 216.5,
+          "items": [
+            {
+              "x": 216.5,
+              "y": 1524.5,
+              "text": "Date",
+              "corrected": false
+            },
+            {
+              "x": 723.5,
+              "y": 1524.5,
+              "text": "Particulars",
+              "corrected": false
+            },
+            {
+              "x": 1214.5,
+              "y": 1527,
+              "text": "Chq.No",
+              "corrected": false
+            },
+            {
+              "x": 1214.5,
+              "y": 1527,
+              "text": ".",
+              "corrected": false
+            },
+            {
+              "x": 1393,
+              "y": 1524.5,
+              "text": "Withdrawals",
+              "corrected": false
+            },
+            {
+              "x": 1577,
+              "y": 1527.5,
+              "text": "Deposits",
+              "corrected": false
+            },
+            {
+              "x": 1754.5,
+              "y": 1527,
+              "text": "Autosweep",
+              "corrected": false
+            },
+            {
+              "x": 1924.5,
+              "y": 1524.5,
+              "text": "Reverse",
+              "corrected": false
+            },
+            {
+              "x": 2047,
+              "y": 1524.5,
+              "text": "Sweep",
+              "corrected": false
+            },
+            {
+              "x": 2217.5,
+              "y": 1524.5,
+              "text": "Balance",
+              "corrected": false
+            },
+            {
+              "x": 2217.5,
+              "y": 1524.5,
+              "text": "(",
+              "corrected": false
+            },
+            {
+              "x": 2217.5,
+              "y": 1524.5,
+              "text": "INR",
+              "corrected": false
+            },
+            {
+              "x": 2327.5,
+              "y": 1524.5,
+              "text": ")",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "01-10-2024 B / F 6,785.49 C",
+          "top": 1587.05,
+          "left": 219.5,
+          "items": [
+            {
+              "x": 219.5,
+              "y": 1588.5,
+              "text": "01",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1588.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1588.5,
+              "text": "10",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1588.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1588.5,
+              "text": "2024",
+              "corrected": false
+            },
+            {
+              "x": 326.5,
+              "y": 1585.5,
+              "text": "B",
+              "corrected": false
+            },
+            {
+              "x": 326.5,
+              "y": 1585.5,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 326.5,
+              "y": 1585.5,
+              "text": "F",
+              "corrected": false
+            },
+            {
+              "x": 2248.5,
+              "y": 1586,
+              "text": "6,785.49",
+              "corrected": false
+            },
+            {
+              "x": 2321.5,
+              "y": 1585.5,
+              "text": "C",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "03-10-2024 NEFT - YESF342772053713 - ZERODHA BROKING LTD - DSCNB A / 0.00 1,764.50 8,549.99 C",
+          "top": 1636.55,
+          "left": 218.5,
+          "items": [
+            {
+              "x": 218.5,
+              "y": 1636.5,
+              "text": "03",
+              "corrected": false
+            },
+            {
+              "x": 218.5,
+              "y": 1636.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 218.5,
+              "y": 1636.5,
+              "text": "10",
+              "corrected": false
+            },
+            {
+              "x": 218.5,
+              "y": 1636.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 218.5,
+              "y": 1636.5,
+              "text": "2024",
+              "corrected": false
+            },
+            {
+              "x": 534.5,
+              "y": 1636.5,
+              "text": "NEFT",
+              "corrected": false
+            },
+            {
+              "x": 534.5,
+              "y": 1636.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 534.5,
+              "y": 1636.5,
+              "text": "YESF342772053713",
+              "corrected": false
+            },
+            {
+              "x": 534.5,
+              "y": 1636.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 534.5,
+              "y": 1636.5,
+              "text": "ZERODHA",
+              "corrected": false
+            },
+            {
+              "x": 834,
+              "y": 1636.5,
+              "text": "BROKING",
+              "corrected": false
+            },
+            {
+              "x": 977.5,
+              "y": 1636.5,
+              "text": "LTD",
+              "corrected": false
+            },
+            {
+              "x": 977.5,
+              "y": 1636.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 977.5,
+              "y": 1636.5,
+              "text": "DSCNB",
+              "corrected": false
+            },
+            {
+              "x": 1075.5,
+              "y": 1636.5,
+              "text": "A",
+              "corrected": false
+            },
+            {
+              "x": 1075.5,
+              "y": 1636.5,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 1465,
+              "y": 1636.5,
+              "text": "0.00",
+              "corrected": false
+            },
+            {
+              "x": 1595,
+              "y": 1636.5,
+              "text": "1,764.50",
+              "corrected": false
+            },
+            {
+              "x": 2248.5,
+              "y": 1636.5,
+              "text": "8,549.99",
+              "corrected": false
+            },
+            {
+              "x": 2321.5,
+              "y": 1637.5,
+              "text": "C",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "06-10-2024 UPI / one97735 @ icici / payment on Zoma / ICICI Bank LTD 0.00 4.00 8,553.99 C",
+          "top": 1692.0227272727273,
+          "left": 222,
+          "items": [
+            {
+              "x": 222,
+              "y": 1690.5,
+              "text": "06",
+              "corrected": false
+            },
+            {
+              "x": 222,
+              "y": 1690.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 222,
+              "y": 1690.5,
+              "text": "10",
+              "corrected": false
+            },
+            {
+              "x": 222,
+              "y": 1690.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 222,
+              "y": 1690.5,
+              "text": "2024",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1693.5,
+              "text": "UPI",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1693.5,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1693.5,
+              "text": "one97735",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1693.5,
+              "text": "@",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1693.5,
+              "text": "icici",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1693.5,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1693.5,
+              "text": "payment",
+              "corrected": false
+            },
+            {
+              "x": 687,
+              "y": 1693,
+              "text": "on",
+              "corrected": false
+            },
+            {
+              "x": 775.5,
+              "y": 1693,
+              "text": "Zoma",
+              "corrected": false
+            },
+            {
+              "x": 775.5,
+              "y": 1693,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 775.5,
+              "y": 1693,
+              "text": "ICICI",
+              "corrected": false
+            },
+            {
+              "x": 880,
+              "y": 1693,
+              "text": "Bank",
+              "corrected": false
+            },
+            {
+              "x": 944.5,
+              "y": 1693.5,
+              "text": "LTD",
+              "corrected": false
+            },
+            {
+              "x": 1465,
+              "y": 1690.5,
+              "text": "0.00",
+              "corrected": false
+            },
+            {
+              "x": 1622,
+              "y": 1687.5,
+              "text": "4.00",
+              "corrected": false
+            },
+            {
+              "x": 2248.5,
+              "y": 1690.5,
+              "text": "8,553.99",
+              "corrected": false
+            },
+            {
+              "x": 2321,
+              "y": 1690.5,
+              "text": "C",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "13-10-2024 UPI / one97735 @ icici / payment on Zoma / ICICI Bank LTD 0.00 4.00 8,557.99 C",
+          "top": 1744.6818181818182,
+          "left": 219.5,
+          "items": [
+            {
+              "x": 219.5,
+              "y": 1746.5,
+              "text": "13",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1746.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1746.5,
+              "text": "10",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1746.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1746.5,
+              "text": "2024",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1744.5,
+              "text": "UPI",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1744.5,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1744.5,
+              "text": "one97735",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1744.5,
+              "text": "@",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1744.5,
+              "text": "icici",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1744.5,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 485,
+              "y": 1744.5,
+              "text": "payment",
+              "corrected": false
+            },
+            {
+              "x": 687,
+              "y": 1744,
+              "text": "on",
+              "corrected": false
+            },
+            {
+              "x": 775.5,
+              "y": 1744,
+              "text": "Zoma",
+              "corrected": false
+            },
+            {
+              "x": 775.5,
+              "y": 1744,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 775.5,
+              "y": 1744,
+              "text": "ICICI",
+              "corrected": false
+            },
+            {
+              "x": 880,
+              "y": 1744,
+              "text": "Bank",
+              "corrected": false
+            },
+            {
+              "x": 944.5,
+              "y": 1744.5,
+              "text": "LTD",
+              "corrected": false
+            },
+            {
+              "x": 1465,
+              "y": 1741.5,
+              "text": "0.00",
+              "corrected": false
+            },
+            {
+              "x": 1622,
+              "y": 1744.5,
+              "text": "4.00",
+              "corrected": false
+            },
+            {
+              "x": 2248,
+              "y": 1744,
+              "text": "8,557.99",
+              "corrected": false
+            },
+            {
+              "x": 2321.5,
+              "y": 1744.5,
+              "text": "C",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "31-12-2024 002201510836 : Int.Pd : 30-09-2024 to 30-12-2024 0.00 64.00 8,621.99 Cr",
+          "top": 1797.25,
+          "left": 219.5,
+          "items": [
+            {
+              "x": 219.5,
+              "y": 1797.5,
+              "text": "31",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1797.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1797.5,
+              "text": "12",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1797.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 219.5,
+              "y": 1797.5,
+              "text": "2024",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": "002201510836",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": ":",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": "Int.Pd",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": ":",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": "30",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": "09",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 511.5,
+              "y": 1797.5,
+              "text": "2024",
+              "corrected": false
+            },
+            {
+              "x": 741,
+              "y": 1797.5,
+              "text": "to",
+              "corrected": false
+            },
+            {
+              "x": 837.5,
+              "y": 1797.5,
+              "text": "30",
+              "corrected": false
+            },
+            {
+              "x": 837.5,
+              "y": 1797.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 837.5,
+              "y": 1797.5,
+              "text": "12",
+              "corrected": false
+            },
+            {
+              "x": 837.5,
+              "y": 1797.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 837.5,
+              "y": 1797.5,
+              "text": "2024",
+              "corrected": false
+            },
+            {
+              "x": 1467.5,
+              "y": 1797.5,
+              "text": "0.00",
+              "corrected": false
+            },
+            {
+              "x": 1615,
+              "y": 1797.5,
+              "text": "64.00",
+              "corrected": false
+            },
+            {
+              "x": 2249,
+              "y": 1794.5,
+              "text": "8,621.99",
+              "corrected": false
+            },
+            {
+              "x": 2324,
+              "y": 1794.5,
+              "text": "Cr",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Page Total : 0.00 1,836.50 0.00 0.00 8,621.99 C",
+          "top": 1853.5,
+          "left": 665,
+          "items": [
+            {
+              "x": 665,
+              "y": 1855,
+              "text": "Page",
+              "corrected": false
+            },
+            {
+              "x": 749,
+              "y": 1856,
+              "text": "Total",
+              "corrected": false
+            },
+            {
+              "x": 749,
+              "y": 1856,
+              "text": ":",
+              "corrected": false
+            },
+            {
+              "x": 1465,
+              "y": 1851.5,
+              "text": "0.00",
+              "corrected": false
+            },
+            {
+              "x": 1589.5,
+              "y": 1853.5,
+              "text": "1,836.50",
+              "corrected": false
+            },
+            {
+              "x": 1811,
+              "y": 1854,
+              "text": "0.00",
+              "corrected": false
+            },
+            {
+              "x": 2071,
+              "y": 1854,
+              "text": "0.00",
+              "corrected": false
+            },
+            {
+              "x": 2240,
+              "y": 1851,
+              "text": "8,621.99",
+              "corrected": false
+            },
+            {
+              "x": 2318.5,
+              "y": 1850.5,
+              "text": "C",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Legends for transactions in your account statement",
+          "top": 1983.5,
+          "left": 851,
+          "items": [
+            {
+              "x": 851,
+              "y": 1983.5,
+              "text": "Legends",
+              "corrected": false
+            },
+            {
+              "x": 961,
+              "y": 1983.5,
+              "text": "for",
+              "corrected": false
+            },
+            {
+              "x": 1110.5,
+              "y": 1983.5,
+              "text": "transactions",
+              "corrected": false
+            },
+            {
+              "x": 1249,
+              "y": 1983.5,
+              "text": "in",
+              "corrected": false
+            },
+            {
+              "x": 1315.5,
+              "y": 1983.5,
+              "text": "your",
+              "corrected": false
+            },
+            {
+              "x": 1438.5,
+              "y": 1983.5,
+              "text": "account",
+              "corrected": false
+            },
+            {
+              "x": 1610,
+              "y": 1983.5,
+              "text": "statement",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "VAT / MAT / NFS - Cash withdrawal at other Bank ATM's INF - Internet fund transfer in linked accounts",
+          "top": 2047,
+          "left": 257.5,
+          "items": [
+            {
+              "x": 257.5,
+              "y": 2047,
+              "text": "VAT",
+              "corrected": false
+            },
+            {
+              "x": 257.5,
+              "y": 2047,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 257.5,
+              "y": 2047,
+              "text": "MAT",
+              "corrected": false
+            },
+            {
+              "x": 257.5,
+              "y": 2047,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 257.5,
+              "y": 2047,
+              "text": "NFS",
+              "corrected": false
+            },
+            {
+              "x": 390,
+              "y": 2047,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 445.5,
+              "y": 2047,
+              "text": "Cash",
+              "corrected": false
+            },
+            {
+              "x": 589.5,
+              "y": 2047,
+              "text": "withdrawal",
+              "corrected": false
+            },
+            {
+              "x": 709,
+              "y": 2047,
+              "text": "at",
+              "corrected": false
+            },
+            {
+              "x": 777,
+              "y": 2047,
+              "text": "other",
+              "corrected": false
+            },
+            {
+              "x": 871,
+              "y": 2047,
+              "text": "Bank",
+              "corrected": false
+            },
+            {
+              "x": 975,
+              "y": 2047,
+              "text": "ATM's",
+              "corrected": false
+            },
+            {
+              "x": 1272.5,
+              "y": 2047,
+              "text": "INF",
+              "corrected": false
+            },
+            {
+              "x": 1315,
+              "y": 2047,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 1394,
+              "y": 2047,
+              "text": "Internet",
+              "corrected": false
+            },
+            {
+              "x": 1502,
+              "y": 2047,
+              "text": "fund",
+              "corrected": false
+            },
+            {
+              "x": 1612.5,
+              "y": 2047,
+              "text": "transfer",
+              "corrected": false
+            },
+            {
+              "x": 1699.5,
+              "y": 2047,
+              "text": "in",
+              "corrected": false
+            },
+            {
+              "x": 1771.5,
+              "y": 2047,
+              "text": "linked",
+              "corrected": false
+            },
+            {
+              "x": 1902,
+              "y": 2047,
+              "text": "accounts",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "EBA - Transaction on ICICI direct BIL - Internet Bill payment or funds transfer to Third party",
+          "top": 2104.6176470588234,
+          "left": 174,
+          "items": [
+            {
+              "x": 174,
+              "y": 2103,
+              "text": "EBA",
+              "corrected": false
+            },
+            {
+              "x": 223,
+              "y": 2103,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 336,
+              "y": 2103,
+              "text": "Transaction",
+              "corrected": false
+            },
+            {
+              "x": 459,
+              "y": 2103,
+              "text": "on",
+              "corrected": false
+            },
+            {
+              "x": 524.5,
+              "y": 2103,
+              "text": "ICICI",
+              "corrected": false
+            },
+            {
+              "x": 624,
+              "y": 2103,
+              "text": "direct",
+              "corrected": false
+            },
+            {
+              "x": 1271.5,
+              "y": 2105.5,
+              "text": "BIL",
+              "corrected": false
+            },
+            {
+              "x": 1312.5,
+              "y": 2105.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 1391.5,
+              "y": 2105.5,
+              "text": "Internet",
+              "corrected": false
+            },
+            {
+              "x": 1489.5,
+              "y": 2105.5,
+              "text": "Bill",
+              "corrected": false
+            },
+            {
+              "x": 1594.5,
+              "y": 2105.5,
+              "text": "payment",
+              "corrected": false
+            },
+            {
+              "x": 1689.5,
+              "y": 2105.5,
+              "text": "or",
+              "corrected": false
+            },
+            {
+              "x": 1758.5,
+              "y": 2105.5,
+              "text": "funds",
+              "corrected": false
+            },
+            {
+              "x": 1878.5,
+              "y": 2105.5,
+              "text": "transfer",
+              "corrected": false
+            },
+            {
+              "x": 1968,
+              "y": 2105.5,
+              "text": "to",
+              "corrected": false
+            },
+            {
+              "x": 2037,
+              "y": 2105.5,
+              "text": "Third",
+              "corrected": false
+            },
+            {
+              "x": 2132.5,
+              "y": 2105.5,
+              "text": "party",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "VPS / IPS - Debit card transaction",
+          "top": 2154,
+          "left": 205.5,
+          "items": [
+            {
+              "x": 205.5,
+              "y": 2154,
+              "text": "VPS",
+              "corrected": false
+            },
+            {
+              "x": 205.5,
+              "y": 2154,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 205.5,
+              "y": 2154,
+              "text": "IPS",
+              "corrected": false
+            },
+            {
+              "x": 286,
+              "y": 2154,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 347,
+              "y": 2154,
+              "text": "Debit",
+              "corrected": false
+            },
+            {
+              "x": 435,
+              "y": 2154,
+              "text": "card",
+              "corrected": false
+            },
+            {
+              "x": 573.5,
+              "y": 2154,
+              "text": "transaction",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "TOP - Mobile recharge",
+          "top": 2210.75,
+          "left": 176,
+          "items": [
+            {
+              "x": 176,
+              "y": 2211,
+              "text": "TOP",
+              "corrected": false
+            },
+            {
+              "x": 224,
+              "y": 2210.5,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 293.5,
+              "y": 2210.5,
+              "text": "Mobile",
+              "corrected": false
+            },
+            {
+              "x": 431.5,
+              "y": 2211,
+              "text": "recharge",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Sincerely ,",
+          "top": 2385.5,
+          "left": 208.5,
+          "items": [
+            {
+              "x": 208.5,
+              "y": 2385.5,
+              "text": "Sincerely",
+              "corrected": false
+            },
+            {
+              "x": 208.5,
+              "y": 2385.5,
+              "text": ",",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Team ICICI Bank",
+          "top": 2435,
+          "left": 170.5,
+          "items": [
+            {
+              "x": 170.5,
+              "y": 2435,
+              "text": "Team",
+              "corrected": false
+            },
+            {
+              "x": 265,
+              "y": 2435,
+              "text": "ICICI",
+              "corrected": false
+            },
+            {
+              "x": 360,
+              "y": 2435,
+              "text": "Bank",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "This is a system - generated statement.Hence , it does not require any signature .",
+          "top": 2501,
+          "left": 635.5,
+          "items": [
+            {
+              "x": 635.5,
+              "y": 2501,
+              "text": "This",
+              "corrected": false
+            },
+            {
+              "x": 692,
+              "y": 2501,
+              "text": "is",
+              "corrected": false
+            },
+            {
+              "x": 727.5,
+              "y": 2501,
+              "text": "a",
+              "corrected": false
+            },
+            {
+              "x": 890.5,
+              "y": 2501,
+              "text": "system",
+              "corrected": false
+            },
+            {
+              "x": 890.5,
+              "y": 2501,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 890.5,
+              "y": 2501,
+              "text": "generated",
+              "corrected": false
+            },
+            {
+              "x": 1186.5,
+              "y": 2501,
+              "text": "statement.Hence",
+              "corrected": false
+            },
+            {
+              "x": 1186.5,
+              "y": 2501,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 1350.5,
+              "y": 2501,
+              "text": "it",
+              "corrected": false
+            },
+            {
+              "x": 1408.5,
+              "y": 2501,
+              "text": "does",
+              "corrected": false
+            },
+            {
+              "x": 1479.5,
+              "y": 2501,
+              "text": "not",
+              "corrected": false
+            },
+            {
+              "x": 1572.5,
+              "y": 2501,
+              "text": "require",
+              "corrected": false
+            },
+            {
+              "x": 1666.5,
+              "y": 2501,
+              "text": "any",
+              "corrected": false
+            },
+            {
+              "x": 1789,
+              "y": 2501,
+              "text": "signature",
+              "corrected": false
+            },
+            {
+              "x": 1789,
+              "y": 2501,
+              "text": ".",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "Category of service : Banking & Financial Services . Registration No.MIV / ST / Bank & Finc / 4 .",
+          "top": 2700,
+          "left": 708,
+          "items": [
+            {
+              "x": 708,
+              "y": 2700,
+              "text": "Category",
+              "corrected": false
+            },
+            {
+              "x": 794.5,
+              "y": 2700,
+              "text": "of",
+              "corrected": false
+            },
+            {
+              "x": 865.5,
+              "y": 2700,
+              "text": "service",
+              "corrected": false
+            },
+            {
+              "x": 865.5,
+              "y": 2700,
+              "text": ":",
+              "corrected": false
+            },
+            {
+              "x": 977.5,
+              "y": 2700,
+              "text": "Banking",
+              "corrected": false
+            },
+            {
+              "x": 1110,
+              "y": 2700,
+              "text": "&",
+              "corrected": false
+            },
+            {
+              "x": 1110,
+              "y": 2700,
+              "text": "Financial",
+              "corrected": false
+            },
+            {
+              "x": 1248.5,
+              "y": 2700,
+              "text": "Services",
+              "corrected": false
+            },
+            {
+              "x": 1248.5,
+              "y": 2700,
+              "text": ".",
+              "corrected": false
+            },
+            {
+              "x": 1397.5,
+              "y": 2700,
+              "text": "Registration",
+              "corrected": false
+            },
+            {
+              "x": 1599,
+              "y": 2700,
+              "text": "No.MIV",
+              "corrected": false
+            },
+            {
+              "x": 1599,
+              "y": 2700,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 1599,
+              "y": 2700,
+              "text": "ST",
+              "corrected": false
+            },
+            {
+              "x": 1599,
+              "y": 2700,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 1599,
+              "y": 2700,
+              "text": "Bank",
+              "corrected": false
+            },
+            {
+              "x": 1770.5,
+              "y": 2700,
+              "text": "&",
+              "corrected": false
+            },
+            {
+              "x": 1770.5,
+              "y": 2700,
+              "text": "Finc",
+              "corrected": false
+            },
+            {
+              "x": 1770.5,
+              "y": 2700,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 1770.5,
+              "y": 2700,
+              "text": "4",
+              "corrected": false
+            },
+            {
+              "x": 1770.5,
+              "y": 2700,
+              "text": ".",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "REGD ADDRESS : ICICI BANK TOWER , NEAR CHAKLI CIRCLE , OLD PADRA ROAD , VADODARA - 390 007 , INDIA",
+          "top": 2746,
+          "left": 593.5,
+          "items": [
+            {
+              "x": 593.5,
+              "y": 2746,
+              "text": "REGD",
+              "corrected": false
+            },
+            {
+              "x": 702,
+              "y": 2746,
+              "text": "ADDRESS",
+              "corrected": false
+            },
+            {
+              "x": 702,
+              "y": 2746,
+              "text": ":",
+              "corrected": false
+            },
+            {
+              "x": 801,
+              "y": 2746,
+              "text": "ICICI",
+              "corrected": false
+            },
+            {
+              "x": 873,
+              "y": 2746,
+              "text": "BANK",
+              "corrected": false
+            },
+            {
+              "x": 970,
+              "y": 2746,
+              "text": "TOWER",
+              "corrected": false
+            },
+            {
+              "x": 970,
+              "y": 2746,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 1064,
+              "y": 2746,
+              "text": "NEAR",
+              "corrected": false
+            },
+            {
+              "x": 1154.5,
+              "y": 2746,
+              "text": "CHAKLI",
+              "corrected": false
+            },
+            {
+              "x": 1282,
+              "y": 2746,
+              "text": "CIRCLE",
+              "corrected": false
+            },
+            {
+              "x": 1282,
+              "y": 2746,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 1282,
+              "y": 2746,
+              "text": "OLD",
+              "corrected": false
+            },
+            {
+              "x": 1408,
+              "y": 2746,
+              "text": "PADRA",
+              "corrected": false
+            },
+            {
+              "x": 1507,
+              "y": 2746,
+              "text": "ROAD",
+              "corrected": false
+            },
+            {
+              "x": 1507,
+              "y": 2746,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 1633,
+              "y": 2746,
+              "text": "VADODARA",
+              "corrected": false
+            },
+            {
+              "x": 1718.5,
+              "y": 2746,
+              "text": "-",
+              "corrected": false
+            },
+            {
+              "x": 1754.5,
+              "y": 2746,
+              "text": "390",
+              "corrected": false
+            },
+            {
+              "x": 1811,
+              "y": 2746,
+              "text": "007",
+              "corrected": false
+            },
+            {
+              "x": 1811,
+              "y": 2746,
+              "text": ",",
+              "corrected": false
+            },
+            {
+              "x": 1881,
+              "y": 2746,
+              "text": "INDIA",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        },
+        {
+          "pageNumber": 1,
+          "text": "This is an authenticated intimation / statement . Customers are requested to immediately notify the Bank of any discrepancy in the statement",
+          "top": 2786.5454545454545,
+          "left": 421.5,
+          "items": [
+            {
+              "x": 421.5,
+              "y": 2787,
+              "text": "This",
+              "corrected": false
+            },
+            {
+              "x": 461,
+              "y": 2786.5,
+              "text": "is",
+              "corrected": false
+            },
+            {
+              "x": 494.5,
+              "y": 2786.5,
+              "text": "an",
+              "corrected": false
+            },
+            {
+              "x": 601.5,
+              "y": 2786.5,
+              "text": "authenticated",
+              "corrected": false
+            },
+            {
+              "x": 822,
+              "y": 2786.5,
+              "text": "intimation",
+              "corrected": false
+            },
+            {
+              "x": 822,
+              "y": 2786.5,
+              "text": "/",
+              "corrected": false
+            },
+            {
+              "x": 822,
+              "y": 2786.5,
+              "text": "statement",
+              "corrected": false
+            },
+            {
+              "x": 822,
+              "y": 2786.5,
+              "text": ".",
+              "corrected": false
+            },
+            {
+              "x": 1023.5,
+              "y": 2786.5,
+              "text": "Customers",
+              "corrected": false
+            },
+            {
+              "x": 1112.5,
+              "y": 2786.5,
+              "text": "are",
+              "corrected": false
+            },
+            {
+              "x": 1200.5,
+              "y": 2786.5,
+              "text": "requested",
+              "corrected": false
+            },
+            {
+              "x": 1281,
+              "y": 2786.5,
+              "text": "to",
+              "corrected": false
+            },
+            {
+              "x": 1373.5,
+              "y": 2786.5,
+              "text": "immediately",
+              "corrected": false
+            },
+            {
+              "x": 1489,
+              "y": 2786.5,
+              "text": "notify",
+              "corrected": false
+            },
+            {
+              "x": 1550.5,
+              "y": 2786.5,
+              "text": "the",
+              "corrected": false
+            },
+            {
+              "x": 1607,
+              "y": 2786.5,
+              "text": "Bank",
+              "corrected": false
+            },
+            {
+              "x": 1657,
+              "y": 2786.5,
+              "text": "of",
+              "corrected": false
+            },
+            {
+              "x": 1699,
+              "y": 2786.5,
+              "text": "any",
+              "corrected": false
+            },
+            {
+              "x": 1799,
+              "y": 2786.5,
+              "text": "discrepancy",
+              "corrected": false
+            },
+            {
+              "x": 1889,
+              "y": 2786.5,
+              "text": "in",
+              "corrected": false
+            },
+            {
+              "x": 1929,
+              "y": 2786.5,
+              "text": "the",
+              "corrected": false
+            },
+            {
+              "x": 2022,
+              "y": 2787,
+              "text": "statement",
+              "corrected": false
+            }
+          ],
+          "hadOcrCorrections": false
+        }
+      ]
+    }
+  ],
+  "lines": [
+    {
+      "pageNumber": 1,
+      "text": "Page 1",
+      "top": 35.5,
+      "left": 2286,
+      "items": [
+        {
+          "x": 2286,
+          "y": 35.5,
+          "text": "Page",
+          "corrected": false
+        },
+        {
+          "x": 2338,
+          "y": 35.5,
+          "text": "1",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "fICICI",
+      "top": 137,
+      "left": 435.5,
+      "items": [
+        {
+          "x": 435.5,
+          "y": 137,
+          "text": "fICICI",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Bank",
+      "top": 146,
+      "left": 860.5,
+      "items": [
+        {
+          "x": 860.5,
+          "y": 146,
+          "text": "Bank",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "[ iCRM_887411_10.129.54.208_2025102994350 ]",
+      "top": 288,
+      "left": 518.5,
+      "items": [
+        {
+          "x": 518.5,
+          "y": 288,
+          "text": "[",
+          "corrected": false
+        },
+        {
+          "x": 518.5,
+          "y": 288,
+          "text": "iCRM_887411_10.129.54.208_2025102994350",
+          "corrected": false
+        },
+        {
+          "x": 910.5,
+          "y": 288,
+          "text": "]",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Your Details With Us :",
+      "top": 482,
+      "left": 183.5,
+      "items": [
+        {
+          "x": 183.5,
+          "y": 482,
+          "text": "Your",
+          "corrected": false
+        },
+        {
+          "x": 286.5,
+          "y": 482,
+          "text": "Details",
+          "corrected": false
+        },
+        {
+          "x": 390.5,
+          "y": 482,
+          "text": "With",
+          "corrected": false
+        },
+        {
+          "x": 469.5,
+          "y": 482,
+          "text": "Us",
+          "corrected": false
+        },
+        {
+          "x": 469.5,
+          "y": 482,
+          "text": ":",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "MR.ROHAN A THAKUR",
+      "top": 535.5,
+      "left": 240,
+      "items": [
+        {
+          "x": 240,
+          "y": 535.5,
+          "text": "MR.ROHAN",
+          "corrected": false
+        },
+        {
+          "x": 355.5,
+          "y": 535.5,
+          "text": "A",
+          "corrected": false
+        },
+        {
+          "x": 452,
+          "y": 535.5,
+          "text": "THAKUR",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "108 - FIRST FLOOR , BLDG NO - 1 , VASAI W ,",
+      "top": 589,
+      "left": 231,
+      "items": [
+        {
+          "x": 231,
+          "y": 589,
+          "text": "108",
+          "corrected": false
+        },
+        {
+          "x": 231,
+          "y": 589,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 231,
+          "y": 589,
+          "text": "FIRST",
+          "corrected": false
+        },
+        {
+          "x": 437.5,
+          "y": 589,
+          "text": "FLOOR",
+          "corrected": false
+        },
+        {
+          "x": 437.5,
+          "y": 589,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 437.5,
+          "y": 589,
+          "text": "BLDG",
+          "corrected": false
+        },
+        {
+          "x": 660.5,
+          "y": 589,
+          "text": "NO",
+          "corrected": false
+        },
+        {
+          "x": 660.5,
+          "y": 589,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 660.5,
+          "y": 589,
+          "text": "1",
+          "corrected": false
+        },
+        {
+          "x": 660.5,
+          "y": 589,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 660.5,
+          "y": 589,
+          "text": "VASAI",
+          "corrected": false
+        },
+        {
+          "x": 796.5,
+          "y": 589,
+          "text": "W",
+          "corrected": false
+        },
+        {
+          "x": 796.5,
+          "y": 589,
+          "text": ",",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "SAGAR SHET , SAGAR PARK CHS LTD ,",
+      "top": 642.5,
+      "left": 204.5,
+      "items": [
+        {
+          "x": 204.5,
+          "y": 642.5,
+          "text": "SAGAR",
+          "corrected": false
+        },
+        {
+          "x": 386.5,
+          "y": 642.5,
+          "text": "SHET",
+          "corrected": false
+        },
+        {
+          "x": 386.5,
+          "y": 642.5,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 386.5,
+          "y": 642.5,
+          "text": "SAGAR",
+          "corrected": false
+        },
+        {
+          "x": 558,
+          "y": 642.5,
+          "text": "PARK",
+          "corrected": false
+        },
+        {
+          "x": 650,
+          "y": 642.5,
+          "text": "CHS",
+          "corrected": false
+        },
+        {
+          "x": 735,
+          "y": 642.5,
+          "text": "LTD",
+          "corrected": false
+        },
+        {
+          "x": 735,
+          "y": 642.5,
+          "text": ",",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "1800 1080",
+      "top": 675.25,
+      "left": 2046.5,
+      "items": [
+        {
+          "x": 2046.5,
+          "y": 675,
+          "text": "1800",
+          "corrected": false
+        },
+        {
+          "x": 2159.5,
+          "y": 675.5,
+          "text": "1080",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "VASAI",
+      "top": 691,
+      "left": 201,
+      "items": [
+        {
+          "x": 201,
+          "y": 691,
+          "text": "VASAI",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "MAHARASHTRA - INDIA - 401201",
+      "top": 742,
+      "left": 282.5,
+      "items": [
+        {
+          "x": 282.5,
+          "y": 742,
+          "text": "MAHARASHTRA",
+          "corrected": false
+        },
+        {
+          "x": 432.5,
+          "y": 742,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 498,
+          "y": 742,
+          "text": "INDIA",
+          "corrected": false
+        },
+        {
+          "x": 563.5,
+          "y": 742,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 641.5,
+          "y": 742,
+          "text": "401201",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Your Base Branch : ICICI Bank Ltd , First Floor Jewel Developers Papdi Naka , Papdi Bangli Road , Near Catholic Bassein Co op Bank , Vasai west - 401207",
+      "top": 785.5,
+      "left": 740.5,
+      "items": [
+        {
+          "x": 740.5,
+          "y": 785.5,
+          "text": "Your",
+          "corrected": false
+        },
+        {
+          "x": 801,
+          "y": 785.5,
+          "text": "Base",
+          "corrected": false
+        },
+        {
+          "x": 878.5,
+          "y": 785.5,
+          "text": "Branch",
+          "corrected": false
+        },
+        {
+          "x": 878.5,
+          "y": 785.5,
+          "text": ":",
+          "corrected": false
+        },
+        {
+          "x": 954,
+          "y": 785.5,
+          "text": "ICICI",
+          "corrected": false
+        },
+        {
+          "x": 1012,
+          "y": 785.5,
+          "text": "Bank",
+          "corrected": false
+        },
+        {
+          "x": 1066,
+          "y": 785.5,
+          "text": "Ltd",
+          "corrected": false
+        },
+        {
+          "x": 1066,
+          "y": 785.5,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 1116,
+          "y": 785.5,
+          "text": "First",
+          "corrected": false
+        },
+        {
+          "x": 1171,
+          "y": 785.5,
+          "text": "Floor",
+          "corrected": false
+        },
+        {
+          "x": 1235,
+          "y": 785.5,
+          "text": "Jewel",
+          "corrected": false
+        },
+        {
+          "x": 1331,
+          "y": 785.5,
+          "text": "Developers",
+          "corrected": false
+        },
+        {
+          "x": 1428,
+          "y": 785.5,
+          "text": "Papdi",
+          "corrected": false
+        },
+        {
+          "x": 1529,
+          "y": 785.5,
+          "text": "Naka",
+          "corrected": false
+        },
+        {
+          "x": 1529,
+          "y": 785.5,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 1529,
+          "y": 785.5,
+          "text": "Papdi",
+          "corrected": false
+        },
+        {
+          "x": 1634,
+          "y": 785.5,
+          "text": "Bangli",
+          "corrected": false
+        },
+        {
+          "x": 1732,
+          "y": 785.5,
+          "text": "Road",
+          "corrected": false
+        },
+        {
+          "x": 1732,
+          "y": 785.5,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 1732,
+          "y": 785.5,
+          "text": "Near",
+          "corrected": false
+        },
+        {
+          "x": 1838.5,
+          "y": 785.5,
+          "text": "Catholic",
+          "corrected": false
+        },
+        {
+          "x": 1929.5,
+          "y": 785.5,
+          "text": "Bassein",
+          "corrected": false
+        },
+        {
+          "x": 1991.5,
+          "y": 785.5,
+          "text": "Co",
+          "corrected": false
+        },
+        {
+          "x": 2024.5,
+          "y": 785.5,
+          "text": "op",
+          "corrected": false
+        },
+        {
+          "x": 2075,
+          "y": 785.5,
+          "text": "Bank",
+          "corrected": false
+        },
+        {
+          "x": 2075,
+          "y": 785.5,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 2141,
+          "y": 785.5,
+          "text": "Vasai",
+          "corrected": false
+        },
+        {
+          "x": 2201,
+          "y": 785.5,
+          "text": "west",
+          "corrected": false
+        },
+        {
+          "x": 2238,
+          "y": 785.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 2291,
+          "y": 785.5,
+          "text": "401207",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Summary of Account as on 31-12-2024",
+      "top": 912.5,
+      "left": 981.5,
+      "items": [
+        {
+          "x": 981.5,
+          "y": 912.5,
+          "text": "Summary",
+          "corrected": false
+        },
+        {
+          "x": 1091.5,
+          "y": 912.5,
+          "text": "of",
+          "corrected": false
+        },
+        {
+          "x": 1196.5,
+          "y": 912.5,
+          "text": "Account",
+          "corrected": false
+        },
+        {
+          "x": 1301.5,
+          "y": 912.5,
+          "text": "as",
+          "corrected": false
+        },
+        {
+          "x": 1352.5,
+          "y": 912.5,
+          "text": "on",
+          "corrected": false
+        },
+        {
+          "x": 1483.5,
+          "y": 912.5,
+          "text": "31",
+          "corrected": false
+        },
+        {
+          "x": 1483.5,
+          "y": 912.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 1483.5,
+          "y": 912.5,
+          "text": "12",
+          "corrected": false
+        },
+        {
+          "x": 1483.5,
+          "y": 912.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 1483.5,
+          "y": 912.5,
+          "text": "2024",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "I . Operative Account in INR",
+      "top": 1009.5,
+      "left": 1006,
+      "items": [
+        {
+          "x": 1006,
+          "y": 1009.5,
+          "text": "I",
+          "corrected": false
+        },
+        {
+          "x": 1006,
+          "y": 1009.5,
+          "text": ".",
+          "corrected": false
+        },
+        {
+          "x": 1113.5,
+          "y": 1009.5,
+          "text": "Operative",
+          "corrected": false
+        },
+        {
+          "x": 1286,
+          "y": 1009.5,
+          "text": "Account",
+          "corrected": false
+        },
+        {
+          "x": 1386,
+          "y": 1009.5,
+          "text": "in",
+          "corrected": false
+        },
+        {
+          "x": 1446,
+          "y": 1009.5,
+          "text": "INR",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Type of Account Account Number Balance ( INR ) MICR IFSC Nomination",
+      "top": 1101.7916666666667,
+      "left": 272.5,
+      "items": [
+        {
+          "x": 272.5,
+          "y": 1104.5,
+          "text": "Type",
+          "corrected": false
+        },
+        {
+          "x": 331.5,
+          "y": 1102.5,
+          "text": "of",
+          "corrected": false
+        },
+        {
+          "x": 421.5,
+          "y": 1101,
+          "text": "Account",
+          "corrected": false
+        },
+        {
+          "x": 757,
+          "y": 1101.5,
+          "text": "Account",
+          "corrected": false
+        },
+        {
+          "x": 890.5,
+          "y": 1101.5,
+          "text": "Number",
+          "corrected": false
+        },
+        {
+          "x": 1202,
+          "y": 1101.5,
+          "text": "Balance",
+          "corrected": false
+        },
+        {
+          "x": 1307,
+          "y": 1101.5,
+          "text": "(",
+          "corrected": false
+        },
+        {
+          "x": 1307,
+          "y": 1101.5,
+          "text": "INR",
+          "corrected": false
+        },
+        {
+          "x": 1356,
+          "y": 1101.5,
+          "text": ")",
+          "corrected": false
+        },
+        {
+          "x": 1585,
+          "y": 1101.5,
+          "text": "MICR",
+          "corrected": false
+        },
+        {
+          "x": 1870,
+          "y": 1101.5,
+          "text": "IFSC",
+          "corrected": false
+        },
+        {
+          "x": 2180.5,
+          "y": 1101.5,
+          "text": "Nomination",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Savings 002201510836 8,621.99 Cr 400229233 ICIC0003515 Registered",
+      "top": 1161.5,
+      "left": 361.5,
+      "items": [
+        {
+          "x": 361.5,
+          "y": 1163.5,
+          "text": "Savings",
+          "corrected": false
+        },
+        {
+          "x": 820,
+          "y": 1159.5,
+          "text": "002201510836",
+          "corrected": false
+        },
+        {
+          "x": 1346,
+          "y": 1162.5,
+          "text": "8,621.99",
+          "corrected": false
+        },
+        {
+          "x": 1429,
+          "y": 1163.5,
+          "text": "Cr",
+          "corrected": false
+        },
+        {
+          "x": 1587,
+          "y": 1159.5,
+          "text": "400229233",
+          "corrected": false
+        },
+        {
+          "x": 1867,
+          "y": 1159.5,
+          "text": "ICIC0003515",
+          "corrected": false
+        },
+        {
+          "x": 2180.5,
+          "y": 1162.5,
+          "text": "Registered",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "TOTAL 8,621.99 Cr",
+      "top": 1218.5,
+      "left": 1001.5,
+      "items": [
+        {
+          "x": 1001.5,
+          "y": 1218.5,
+          "text": "TOTAL",
+          "corrected": false
+        },
+        {
+          "x": 1346,
+          "y": 1219.5,
+          "text": "8,621.99",
+          "corrected": false
+        },
+        {
+          "x": 1429,
+          "y": 1217.5,
+          "text": "Cr",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Statement of transactions in Account number : 002201510836 in INR For the period 01-10-2024 To 31-12-2024",
+      "top": 1374,
+      "left": 370,
+      "items": [
+        {
+          "x": 370,
+          "y": 1374,
+          "text": "Statement",
+          "corrected": false
+        },
+        {
+          "x": 484,
+          "y": 1374,
+          "text": "of",
+          "corrected": false
+        },
+        {
+          "x": 623.5,
+          "y": 1374,
+          "text": "transactions",
+          "corrected": false
+        },
+        {
+          "x": 763,
+          "y": 1374,
+          "text": "in",
+          "corrected": false
+        },
+        {
+          "x": 864.5,
+          "y": 1374,
+          "text": "Account",
+          "corrected": false
+        },
+        {
+          "x": 1022.5,
+          "y": 1374,
+          "text": "number",
+          "corrected": false
+        },
+        {
+          "x": 1022.5,
+          "y": 1374,
+          "text": ":",
+          "corrected": false
+        },
+        {
+          "x": 1231,
+          "y": 1374,
+          "text": "002201510836",
+          "corrected": false
+        },
+        {
+          "x": 1384,
+          "y": 1374,
+          "text": "in",
+          "corrected": false
+        },
+        {
+          "x": 1445,
+          "y": 1374,
+          "text": "INR",
+          "corrected": false
+        },
+        {
+          "x": 1516.5,
+          "y": 1374,
+          "text": "For",
+          "corrected": false
+        },
+        {
+          "x": 1584.5,
+          "y": 1374,
+          "text": "the",
+          "corrected": false
+        },
+        {
+          "x": 1680.5,
+          "y": 1374,
+          "text": "period",
+          "corrected": false
+        },
+        {
+          "x": 1842.5,
+          "y": 1374,
+          "text": "01",
+          "corrected": false
+        },
+        {
+          "x": 1842.5,
+          "y": 1374,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 1842.5,
+          "y": 1374,
+          "text": "10",
+          "corrected": false
+        },
+        {
+          "x": 1842.5,
+          "y": 1374,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 1842.5,
+          "y": 1374,
+          "text": "2024",
+          "corrected": false
+        },
+        {
+          "x": 1971,
+          "y": 1374,
+          "text": "To",
+          "corrected": false
+        },
+        {
+          "x": 2099.5,
+          "y": 1374,
+          "text": "31",
+          "corrected": false
+        },
+        {
+          "x": 2099.5,
+          "y": 1374,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 2099.5,
+          "y": 1374,
+          "text": "12",
+          "corrected": false
+        },
+        {
+          "x": 2099.5,
+          "y": 1374,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 2099.5,
+          "y": 1374,
+          "text": "2024",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Date Particulars Chq.No . Withdrawals Deposits Autosweep Reverse Sweep Balance ( INR )",
+      "top": 1525.3076923076924,
+      "left": 216.5,
+      "items": [
+        {
+          "x": 216.5,
+          "y": 1524.5,
+          "text": "Date",
+          "corrected": false
+        },
+        {
+          "x": 723.5,
+          "y": 1524.5,
+          "text": "Particulars",
+          "corrected": false
+        },
+        {
+          "x": 1214.5,
+          "y": 1527,
+          "text": "Chq.No",
+          "corrected": false
+        },
+        {
+          "x": 1214.5,
+          "y": 1527,
+          "text": ".",
+          "corrected": false
+        },
+        {
+          "x": 1393,
+          "y": 1524.5,
+          "text": "Withdrawals",
+          "corrected": false
+        },
+        {
+          "x": 1577,
+          "y": 1527.5,
+          "text": "Deposits",
+          "corrected": false
+        },
+        {
+          "x": 1754.5,
+          "y": 1527,
+          "text": "Autosweep",
+          "corrected": false
+        },
+        {
+          "x": 1924.5,
+          "y": 1524.5,
+          "text": "Reverse",
+          "corrected": false
+        },
+        {
+          "x": 2047,
+          "y": 1524.5,
+          "text": "Sweep",
+          "corrected": false
+        },
+        {
+          "x": 2217.5,
+          "y": 1524.5,
+          "text": "Balance",
+          "corrected": false
+        },
+        {
+          "x": 2217.5,
+          "y": 1524.5,
+          "text": "(",
+          "corrected": false
+        },
+        {
+          "x": 2217.5,
+          "y": 1524.5,
+          "text": "INR",
+          "corrected": false
+        },
+        {
+          "x": 2327.5,
+          "y": 1524.5,
+          "text": ")",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "01-10-2024 B / F 6,785.49 C",
+      "top": 1587.05,
+      "left": 219.5,
+      "items": [
+        {
+          "x": 219.5,
+          "y": 1588.5,
+          "text": "01",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1588.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1588.5,
+          "text": "10",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1588.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1588.5,
+          "text": "2024",
+          "corrected": false
+        },
+        {
+          "x": 326.5,
+          "y": 1585.5,
+          "text": "B",
+          "corrected": false
+        },
+        {
+          "x": 326.5,
+          "y": 1585.5,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 326.5,
+          "y": 1585.5,
+          "text": "F",
+          "corrected": false
+        },
+        {
+          "x": 2248.5,
+          "y": 1586,
+          "text": "6,785.49",
+          "corrected": false
+        },
+        {
+          "x": 2321.5,
+          "y": 1585.5,
+          "text": "C",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "03-10-2024 NEFT - YESF342772053713 - ZERODHA BROKING LTD - DSCNB A / 0.00 1,764.50 8,549.99 C",
+      "top": 1636.55,
+      "left": 218.5,
+      "items": [
+        {
+          "x": 218.5,
+          "y": 1636.5,
+          "text": "03",
+          "corrected": false
+        },
+        {
+          "x": 218.5,
+          "y": 1636.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 218.5,
+          "y": 1636.5,
+          "text": "10",
+          "corrected": false
+        },
+        {
+          "x": 218.5,
+          "y": 1636.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 218.5,
+          "y": 1636.5,
+          "text": "2024",
+          "corrected": false
+        },
+        {
+          "x": 534.5,
+          "y": 1636.5,
+          "text": "NEFT",
+          "corrected": false
+        },
+        {
+          "x": 534.5,
+          "y": 1636.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 534.5,
+          "y": 1636.5,
+          "text": "YESF342772053713",
+          "corrected": false
+        },
+        {
+          "x": 534.5,
+          "y": 1636.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 534.5,
+          "y": 1636.5,
+          "text": "ZERODHA",
+          "corrected": false
+        },
+        {
+          "x": 834,
+          "y": 1636.5,
+          "text": "BROKING",
+          "corrected": false
+        },
+        {
+          "x": 977.5,
+          "y": 1636.5,
+          "text": "LTD",
+          "corrected": false
+        },
+        {
+          "x": 977.5,
+          "y": 1636.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 977.5,
+          "y": 1636.5,
+          "text": "DSCNB",
+          "corrected": false
+        },
+        {
+          "x": 1075.5,
+          "y": 1636.5,
+          "text": "A",
+          "corrected": false
+        },
+        {
+          "x": 1075.5,
+          "y": 1636.5,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 1465,
+          "y": 1636.5,
+          "text": "0.00",
+          "corrected": false
+        },
+        {
+          "x": 1595,
+          "y": 1636.5,
+          "text": "1,764.50",
+          "corrected": false
+        },
+        {
+          "x": 2248.5,
+          "y": 1636.5,
+          "text": "8,549.99",
+          "corrected": false
+        },
+        {
+          "x": 2321.5,
+          "y": 1637.5,
+          "text": "C",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "06-10-2024 UPI / one97735 @ icici / payment on Zoma / ICICI Bank LTD 0.00 4.00 8,553.99 C",
+      "top": 1692.0227272727273,
+      "left": 222,
+      "items": [
+        {
+          "x": 222,
+          "y": 1690.5,
+          "text": "06",
+          "corrected": false
+        },
+        {
+          "x": 222,
+          "y": 1690.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 222,
+          "y": 1690.5,
+          "text": "10",
+          "corrected": false
+        },
+        {
+          "x": 222,
+          "y": 1690.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 222,
+          "y": 1690.5,
+          "text": "2024",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1693.5,
+          "text": "UPI",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1693.5,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1693.5,
+          "text": "one97735",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1693.5,
+          "text": "@",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1693.5,
+          "text": "icici",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1693.5,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1693.5,
+          "text": "payment",
+          "corrected": false
+        },
+        {
+          "x": 687,
+          "y": 1693,
+          "text": "on",
+          "corrected": false
+        },
+        {
+          "x": 775.5,
+          "y": 1693,
+          "text": "Zoma",
+          "corrected": false
+        },
+        {
+          "x": 775.5,
+          "y": 1693,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 775.5,
+          "y": 1693,
+          "text": "ICICI",
+          "corrected": false
+        },
+        {
+          "x": 880,
+          "y": 1693,
+          "text": "Bank",
+          "corrected": false
+        },
+        {
+          "x": 944.5,
+          "y": 1693.5,
+          "text": "LTD",
+          "corrected": false
+        },
+        {
+          "x": 1465,
+          "y": 1690.5,
+          "text": "0.00",
+          "corrected": false
+        },
+        {
+          "x": 1622,
+          "y": 1687.5,
+          "text": "4.00",
+          "corrected": false
+        },
+        {
+          "x": 2248.5,
+          "y": 1690.5,
+          "text": "8,553.99",
+          "corrected": false
+        },
+        {
+          "x": 2321,
+          "y": 1690.5,
+          "text": "C",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "13-10-2024 UPI / one97735 @ icici / payment on Zoma / ICICI Bank LTD 0.00 4.00 8,557.99 C",
+      "top": 1744.6818181818182,
+      "left": 219.5,
+      "items": [
+        {
+          "x": 219.5,
+          "y": 1746.5,
+          "text": "13",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1746.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1746.5,
+          "text": "10",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1746.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1746.5,
+          "text": "2024",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1744.5,
+          "text": "UPI",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1744.5,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1744.5,
+          "text": "one97735",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1744.5,
+          "text": "@",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1744.5,
+          "text": "icici",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1744.5,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 485,
+          "y": 1744.5,
+          "text": "payment",
+          "corrected": false
+        },
+        {
+          "x": 687,
+          "y": 1744,
+          "text": "on",
+          "corrected": false
+        },
+        {
+          "x": 775.5,
+          "y": 1744,
+          "text": "Zoma",
+          "corrected": false
+        },
+        {
+          "x": 775.5,
+          "y": 1744,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 775.5,
+          "y": 1744,
+          "text": "ICICI",
+          "corrected": false
+        },
+        {
+          "x": 880,
+          "y": 1744,
+          "text": "Bank",
+          "corrected": false
+        },
+        {
+          "x": 944.5,
+          "y": 1744.5,
+          "text": "LTD",
+          "corrected": false
+        },
+        {
+          "x": 1465,
+          "y": 1741.5,
+          "text": "0.00",
+          "corrected": false
+        },
+        {
+          "x": 1622,
+          "y": 1744.5,
+          "text": "4.00",
+          "corrected": false
+        },
+        {
+          "x": 2248,
+          "y": 1744,
+          "text": "8,557.99",
+          "corrected": false
+        },
+        {
+          "x": 2321.5,
+          "y": 1744.5,
+          "text": "C",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "31-12-2024 002201510836 : Int.Pd : 30-09-2024 to 30-12-2024 0.00 64.00 8,621.99 Cr",
+      "top": 1797.25,
+      "left": 219.5,
+      "items": [
+        {
+          "x": 219.5,
+          "y": 1797.5,
+          "text": "31",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1797.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1797.5,
+          "text": "12",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1797.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 219.5,
+          "y": 1797.5,
+          "text": "2024",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": "002201510836",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": ":",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": "Int.Pd",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": ":",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": "30",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": "09",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 511.5,
+          "y": 1797.5,
+          "text": "2024",
+          "corrected": false
+        },
+        {
+          "x": 741,
+          "y": 1797.5,
+          "text": "to",
+          "corrected": false
+        },
+        {
+          "x": 837.5,
+          "y": 1797.5,
+          "text": "30",
+          "corrected": false
+        },
+        {
+          "x": 837.5,
+          "y": 1797.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 837.5,
+          "y": 1797.5,
+          "text": "12",
+          "corrected": false
+        },
+        {
+          "x": 837.5,
+          "y": 1797.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 837.5,
+          "y": 1797.5,
+          "text": "2024",
+          "corrected": false
+        },
+        {
+          "x": 1467.5,
+          "y": 1797.5,
+          "text": "0.00",
+          "corrected": false
+        },
+        {
+          "x": 1615,
+          "y": 1797.5,
+          "text": "64.00",
+          "corrected": false
+        },
+        {
+          "x": 2249,
+          "y": 1794.5,
+          "text": "8,621.99",
+          "corrected": false
+        },
+        {
+          "x": 2324,
+          "y": 1794.5,
+          "text": "Cr",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Page Total : 0.00 1,836.50 0.00 0.00 8,621.99 C",
+      "top": 1853.5,
+      "left": 665,
+      "items": [
+        {
+          "x": 665,
+          "y": 1855,
+          "text": "Page",
+          "corrected": false
+        },
+        {
+          "x": 749,
+          "y": 1856,
+          "text": "Total",
+          "corrected": false
+        },
+        {
+          "x": 749,
+          "y": 1856,
+          "text": ":",
+          "corrected": false
+        },
+        {
+          "x": 1465,
+          "y": 1851.5,
+          "text": "0.00",
+          "corrected": false
+        },
+        {
+          "x": 1589.5,
+          "y": 1853.5,
+          "text": "1,836.50",
+          "corrected": false
+        },
+        {
+          "x": 1811,
+          "y": 1854,
+          "text": "0.00",
+          "corrected": false
+        },
+        {
+          "x": 2071,
+          "y": 1854,
+          "text": "0.00",
+          "corrected": false
+        },
+        {
+          "x": 2240,
+          "y": 1851,
+          "text": "8,621.99",
+          "corrected": false
+        },
+        {
+          "x": 2318.5,
+          "y": 1850.5,
+          "text": "C",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Legends for transactions in your account statement",
+      "top": 1983.5,
+      "left": 851,
+      "items": [
+        {
+          "x": 851,
+          "y": 1983.5,
+          "text": "Legends",
+          "corrected": false
+        },
+        {
+          "x": 961,
+          "y": 1983.5,
+          "text": "for",
+          "corrected": false
+        },
+        {
+          "x": 1110.5,
+          "y": 1983.5,
+          "text": "transactions",
+          "corrected": false
+        },
+        {
+          "x": 1249,
+          "y": 1983.5,
+          "text": "in",
+          "corrected": false
+        },
+        {
+          "x": 1315.5,
+          "y": 1983.5,
+          "text": "your",
+          "corrected": false
+        },
+        {
+          "x": 1438.5,
+          "y": 1983.5,
+          "text": "account",
+          "corrected": false
+        },
+        {
+          "x": 1610,
+          "y": 1983.5,
+          "text": "statement",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "VAT / MAT / NFS - Cash withdrawal at other Bank ATM's INF - Internet fund transfer in linked accounts",
+      "top": 2047,
+      "left": 257.5,
+      "items": [
+        {
+          "x": 257.5,
+          "y": 2047,
+          "text": "VAT",
+          "corrected": false
+        },
+        {
+          "x": 257.5,
+          "y": 2047,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 257.5,
+          "y": 2047,
+          "text": "MAT",
+          "corrected": false
+        },
+        {
+          "x": 257.5,
+          "y": 2047,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 257.5,
+          "y": 2047,
+          "text": "NFS",
+          "corrected": false
+        },
+        {
+          "x": 390,
+          "y": 2047,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 445.5,
+          "y": 2047,
+          "text": "Cash",
+          "corrected": false
+        },
+        {
+          "x": 589.5,
+          "y": 2047,
+          "text": "withdrawal",
+          "corrected": false
+        },
+        {
+          "x": 709,
+          "y": 2047,
+          "text": "at",
+          "corrected": false
+        },
+        {
+          "x": 777,
+          "y": 2047,
+          "text": "other",
+          "corrected": false
+        },
+        {
+          "x": 871,
+          "y": 2047,
+          "text": "Bank",
+          "corrected": false
+        },
+        {
+          "x": 975,
+          "y": 2047,
+          "text": "ATM's",
+          "corrected": false
+        },
+        {
+          "x": 1272.5,
+          "y": 2047,
+          "text": "INF",
+          "corrected": false
+        },
+        {
+          "x": 1315,
+          "y": 2047,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 1394,
+          "y": 2047,
+          "text": "Internet",
+          "corrected": false
+        },
+        {
+          "x": 1502,
+          "y": 2047,
+          "text": "fund",
+          "corrected": false
+        },
+        {
+          "x": 1612.5,
+          "y": 2047,
+          "text": "transfer",
+          "corrected": false
+        },
+        {
+          "x": 1699.5,
+          "y": 2047,
+          "text": "in",
+          "corrected": false
+        },
+        {
+          "x": 1771.5,
+          "y": 2047,
+          "text": "linked",
+          "corrected": false
+        },
+        {
+          "x": 1902,
+          "y": 2047,
+          "text": "accounts",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "EBA - Transaction on ICICI direct BIL - Internet Bill payment or funds transfer to Third party",
+      "top": 2104.6176470588234,
+      "left": 174,
+      "items": [
+        {
+          "x": 174,
+          "y": 2103,
+          "text": "EBA",
+          "corrected": false
+        },
+        {
+          "x": 223,
+          "y": 2103,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 336,
+          "y": 2103,
+          "text": "Transaction",
+          "corrected": false
+        },
+        {
+          "x": 459,
+          "y": 2103,
+          "text": "on",
+          "corrected": false
+        },
+        {
+          "x": 524.5,
+          "y": 2103,
+          "text": "ICICI",
+          "corrected": false
+        },
+        {
+          "x": 624,
+          "y": 2103,
+          "text": "direct",
+          "corrected": false
+        },
+        {
+          "x": 1271.5,
+          "y": 2105.5,
+          "text": "BIL",
+          "corrected": false
+        },
+        {
+          "x": 1312.5,
+          "y": 2105.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 1391.5,
+          "y": 2105.5,
+          "text": "Internet",
+          "corrected": false
+        },
+        {
+          "x": 1489.5,
+          "y": 2105.5,
+          "text": "Bill",
+          "corrected": false
+        },
+        {
+          "x": 1594.5,
+          "y": 2105.5,
+          "text": "payment",
+          "corrected": false
+        },
+        {
+          "x": 1689.5,
+          "y": 2105.5,
+          "text": "or",
+          "corrected": false
+        },
+        {
+          "x": 1758.5,
+          "y": 2105.5,
+          "text": "funds",
+          "corrected": false
+        },
+        {
+          "x": 1878.5,
+          "y": 2105.5,
+          "text": "transfer",
+          "corrected": false
+        },
+        {
+          "x": 1968,
+          "y": 2105.5,
+          "text": "to",
+          "corrected": false
+        },
+        {
+          "x": 2037,
+          "y": 2105.5,
+          "text": "Third",
+          "corrected": false
+        },
+        {
+          "x": 2132.5,
+          "y": 2105.5,
+          "text": "party",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "VPS / IPS - Debit card transaction",
+      "top": 2154,
+      "left": 205.5,
+      "items": [
+        {
+          "x": 205.5,
+          "y": 2154,
+          "text": "VPS",
+          "corrected": false
+        },
+        {
+          "x": 205.5,
+          "y": 2154,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 205.5,
+          "y": 2154,
+          "text": "IPS",
+          "corrected": false
+        },
+        {
+          "x": 286,
+          "y": 2154,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 347,
+          "y": 2154,
+          "text": "Debit",
+          "corrected": false
+        },
+        {
+          "x": 435,
+          "y": 2154,
+          "text": "card",
+          "corrected": false
+        },
+        {
+          "x": 573.5,
+          "y": 2154,
+          "text": "transaction",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "TOP - Mobile recharge",
+      "top": 2210.75,
+      "left": 176,
+      "items": [
+        {
+          "x": 176,
+          "y": 2211,
+          "text": "TOP",
+          "corrected": false
+        },
+        {
+          "x": 224,
+          "y": 2210.5,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 293.5,
+          "y": 2210.5,
+          "text": "Mobile",
+          "corrected": false
+        },
+        {
+          "x": 431.5,
+          "y": 2211,
+          "text": "recharge",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Sincerely ,",
+      "top": 2385.5,
+      "left": 208.5,
+      "items": [
+        {
+          "x": 208.5,
+          "y": 2385.5,
+          "text": "Sincerely",
+          "corrected": false
+        },
+        {
+          "x": 208.5,
+          "y": 2385.5,
+          "text": ",",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Team ICICI Bank",
+      "top": 2435,
+      "left": 170.5,
+      "items": [
+        {
+          "x": 170.5,
+          "y": 2435,
+          "text": "Team",
+          "corrected": false
+        },
+        {
+          "x": 265,
+          "y": 2435,
+          "text": "ICICI",
+          "corrected": false
+        },
+        {
+          "x": 360,
+          "y": 2435,
+          "text": "Bank",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "This is a system - generated statement.Hence , it does not require any signature .",
+      "top": 2501,
+      "left": 635.5,
+      "items": [
+        {
+          "x": 635.5,
+          "y": 2501,
+          "text": "This",
+          "corrected": false
+        },
+        {
+          "x": 692,
+          "y": 2501,
+          "text": "is",
+          "corrected": false
+        },
+        {
+          "x": 727.5,
+          "y": 2501,
+          "text": "a",
+          "corrected": false
+        },
+        {
+          "x": 890.5,
+          "y": 2501,
+          "text": "system",
+          "corrected": false
+        },
+        {
+          "x": 890.5,
+          "y": 2501,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 890.5,
+          "y": 2501,
+          "text": "generated",
+          "corrected": false
+        },
+        {
+          "x": 1186.5,
+          "y": 2501,
+          "text": "statement.Hence",
+          "corrected": false
+        },
+        {
+          "x": 1186.5,
+          "y": 2501,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 1350.5,
+          "y": 2501,
+          "text": "it",
+          "corrected": false
+        },
+        {
+          "x": 1408.5,
+          "y": 2501,
+          "text": "does",
+          "corrected": false
+        },
+        {
+          "x": 1479.5,
+          "y": 2501,
+          "text": "not",
+          "corrected": false
+        },
+        {
+          "x": 1572.5,
+          "y": 2501,
+          "text": "require",
+          "corrected": false
+        },
+        {
+          "x": 1666.5,
+          "y": 2501,
+          "text": "any",
+          "corrected": false
+        },
+        {
+          "x": 1789,
+          "y": 2501,
+          "text": "signature",
+          "corrected": false
+        },
+        {
+          "x": 1789,
+          "y": 2501,
+          "text": ".",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "Category of service : Banking & Financial Services . Registration No.MIV / ST / Bank & Finc / 4 .",
+      "top": 2700,
+      "left": 708,
+      "items": [
+        {
+          "x": 708,
+          "y": 2700,
+          "text": "Category",
+          "corrected": false
+        },
+        {
+          "x": 794.5,
+          "y": 2700,
+          "text": "of",
+          "corrected": false
+        },
+        {
+          "x": 865.5,
+          "y": 2700,
+          "text": "service",
+          "corrected": false
+        },
+        {
+          "x": 865.5,
+          "y": 2700,
+          "text": ":",
+          "corrected": false
+        },
+        {
+          "x": 977.5,
+          "y": 2700,
+          "text": "Banking",
+          "corrected": false
+        },
+        {
+          "x": 1110,
+          "y": 2700,
+          "text": "&",
+          "corrected": false
+        },
+        {
+          "x": 1110,
+          "y": 2700,
+          "text": "Financial",
+          "corrected": false
+        },
+        {
+          "x": 1248.5,
+          "y": 2700,
+          "text": "Services",
+          "corrected": false
+        },
+        {
+          "x": 1248.5,
+          "y": 2700,
+          "text": ".",
+          "corrected": false
+        },
+        {
+          "x": 1397.5,
+          "y": 2700,
+          "text": "Registration",
+          "corrected": false
+        },
+        {
+          "x": 1599,
+          "y": 2700,
+          "text": "No.MIV",
+          "corrected": false
+        },
+        {
+          "x": 1599,
+          "y": 2700,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 1599,
+          "y": 2700,
+          "text": "ST",
+          "corrected": false
+        },
+        {
+          "x": 1599,
+          "y": 2700,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 1599,
+          "y": 2700,
+          "text": "Bank",
+          "corrected": false
+        },
+        {
+          "x": 1770.5,
+          "y": 2700,
+          "text": "&",
+          "corrected": false
+        },
+        {
+          "x": 1770.5,
+          "y": 2700,
+          "text": "Finc",
+          "corrected": false
+        },
+        {
+          "x": 1770.5,
+          "y": 2700,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 1770.5,
+          "y": 2700,
+          "text": "4",
+          "corrected": false
+        },
+        {
+          "x": 1770.5,
+          "y": 2700,
+          "text": ".",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "REGD ADDRESS : ICICI BANK TOWER , NEAR CHAKLI CIRCLE , OLD PADRA ROAD , VADODARA - 390 007 , INDIA",
+      "top": 2746,
+      "left": 593.5,
+      "items": [
+        {
+          "x": 593.5,
+          "y": 2746,
+          "text": "REGD",
+          "corrected": false
+        },
+        {
+          "x": 702,
+          "y": 2746,
+          "text": "ADDRESS",
+          "corrected": false
+        },
+        {
+          "x": 702,
+          "y": 2746,
+          "text": ":",
+          "corrected": false
+        },
+        {
+          "x": 801,
+          "y": 2746,
+          "text": "ICICI",
+          "corrected": false
+        },
+        {
+          "x": 873,
+          "y": 2746,
+          "text": "BANK",
+          "corrected": false
+        },
+        {
+          "x": 970,
+          "y": 2746,
+          "text": "TOWER",
+          "corrected": false
+        },
+        {
+          "x": 970,
+          "y": 2746,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 1064,
+          "y": 2746,
+          "text": "NEAR",
+          "corrected": false
+        },
+        {
+          "x": 1154.5,
+          "y": 2746,
+          "text": "CHAKLI",
+          "corrected": false
+        },
+        {
+          "x": 1282,
+          "y": 2746,
+          "text": "CIRCLE",
+          "corrected": false
+        },
+        {
+          "x": 1282,
+          "y": 2746,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 1282,
+          "y": 2746,
+          "text": "OLD",
+          "corrected": false
+        },
+        {
+          "x": 1408,
+          "y": 2746,
+          "text": "PADRA",
+          "corrected": false
+        },
+        {
+          "x": 1507,
+          "y": 2746,
+          "text": "ROAD",
+          "corrected": false
+        },
+        {
+          "x": 1507,
+          "y": 2746,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 1633,
+          "y": 2746,
+          "text": "VADODARA",
+          "corrected": false
+        },
+        {
+          "x": 1718.5,
+          "y": 2746,
+          "text": "-",
+          "corrected": false
+        },
+        {
+          "x": 1754.5,
+          "y": 2746,
+          "text": "390",
+          "corrected": false
+        },
+        {
+          "x": 1811,
+          "y": 2746,
+          "text": "007",
+          "corrected": false
+        },
+        {
+          "x": 1811,
+          "y": 2746,
+          "text": ",",
+          "corrected": false
+        },
+        {
+          "x": 1881,
+          "y": 2746,
+          "text": "INDIA",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    },
+    {
+      "pageNumber": 1,
+      "text": "This is an authenticated intimation / statement . Customers are requested to immediately notify the Bank of any discrepancy in the statement",
+      "top": 2786.5454545454545,
+      "left": 421.5,
+      "items": [
+        {
+          "x": 421.5,
+          "y": 2787,
+          "text": "This",
+          "corrected": false
+        },
+        {
+          "x": 461,
+          "y": 2786.5,
+          "text": "is",
+          "corrected": false
+        },
+        {
+          "x": 494.5,
+          "y": 2786.5,
+          "text": "an",
+          "corrected": false
+        },
+        {
+          "x": 601.5,
+          "y": 2786.5,
+          "text": "authenticated",
+          "corrected": false
+        },
+        {
+          "x": 822,
+          "y": 2786.5,
+          "text": "intimation",
+          "corrected": false
+        },
+        {
+          "x": 822,
+          "y": 2786.5,
+          "text": "/",
+          "corrected": false
+        },
+        {
+          "x": 822,
+          "y": 2786.5,
+          "text": "statement",
+          "corrected": false
+        },
+        {
+          "x": 822,
+          "y": 2786.5,
+          "text": ".",
+          "corrected": false
+        },
+        {
+          "x": 1023.5,
+          "y": 2786.5,
+          "text": "Customers",
+          "corrected": false
+        },
+        {
+          "x": 1112.5,
+          "y": 2786.5,
+          "text": "are",
+          "corrected": false
+        },
+        {
+          "x": 1200.5,
+          "y": 2786.5,
+          "text": "requested",
+          "corrected": false
+        },
+        {
+          "x": 1281,
+          "y": 2786.5,
+          "text": "to",
+          "corrected": false
+        },
+        {
+          "x": 1373.5,
+          "y": 2786.5,
+          "text": "immediately",
+          "corrected": false
+        },
+        {
+          "x": 1489,
+          "y": 2786.5,
+          "text": "notify",
+          "corrected": false
+        },
+        {
+          "x": 1550.5,
+          "y": 2786.5,
+          "text": "the",
+          "corrected": false
+        },
+        {
+          "x": 1607,
+          "y": 2786.5,
+          "text": "Bank",
+          "corrected": false
+        },
+        {
+          "x": 1657,
+          "y": 2786.5,
+          "text": "of",
+          "corrected": false
+        },
+        {
+          "x": 1699,
+          "y": 2786.5,
+          "text": "any",
+          "corrected": false
+        },
+        {
+          "x": 1799,
+          "y": 2786.5,
+          "text": "discrepancy",
+          "corrected": false
+        },
+        {
+          "x": 1889,
+          "y": 2786.5,
+          "text": "in",
+          "corrected": false
+        },
+        {
+          "x": 1929,
+          "y": 2786.5,
+          "text": "the",
+          "corrected": false
+        },
+        {
+          "x": 2022,
+          "y": 2787,
+          "text": "statement",
+          "corrected": false
+        }
+      ],
+      "hadOcrCorrections": false
+    }
+  ],
+  "text": "Page 1\nfICICI\nBank\n[ iCRM_887411_10.129.54.208_2025102994350 ]\nYour Details With Us :\nMR.ROHAN A THAKUR\n108 - FIRST FLOOR , BLDG NO - 1 , VASAI W ,\nSAGAR SHET , SAGAR PARK CHS LTD ,\n1800 1080\nVASAI\nMAHARASHTRA - INDIA - 401201\nYour Base Branch : ICICI Bank Ltd , First Floor Jewel Developers Papdi Naka , Papdi Bangli Road , Near Catholic Bassein Co op Bank , Vasai west - 401207\nSummary of Account as on 31-12-2024\nI . Operative Account in INR\nType of Account Account Number Balance ( INR ) MICR IFSC Nomination\nSavings 002201510836 8,621.99 Cr 400229233 ICIC0003515 Registered\nTOTAL 8,621.99 Cr\nStatement of transactions in Account number : 002201510836 in INR For the period 01-10-2024 To 31-12-2024\nDate Particulars Chq.No . Withdrawals Deposits Autosweep Reverse Sweep Balance ( INR )\n01-10-2024 B / F 6,785.49 C\n03-10-2024 NEFT - YESF342772053713 - ZERODHA BROKING LTD - DSCNB A / 0.00 1,764.50 8,549.99 C\n06-10-2024 UPI / one97735 @ icici / payment on Zoma / ICICI Bank LTD 0.00 4.00 8,553.99 C\n13-10-2024 UPI / one97735 @ icici / payment on Zoma / ICICI Bank LTD 0.00 4.00 8,557.99 C\n31-12-2024 002201510836 : Int.Pd : 30-09-2024 to 30-12-2024 0.00 64.00 8,621.99 Cr\nPage Total : 0.00 1,836.50 0.00 0.00 8,621.99 C\nLegends for transactions in your account statement\nVAT / MAT / NFS - Cash withdrawal at other Bank ATM's INF - Internet fund transfer in linked accounts\nEBA - Transaction on ICICI direct BIL - Internet Bill payment or funds transfer to Third party\nVPS / IPS - Debit card transaction\nTOP - Mobile recharge\nSincerely ,\nTeam ICICI Bank\nThis is a system - generated statement.Hence , it does not require any signature .\nCategory of service : Banking & Financial Services . Registration No.MIV / ST / Bank & Finc / 4 .\nREGD ADDRESS : ICICI BANK TOWER , NEAR CHAKLI CIRCLE , OLD PADRA ROAD , VADODARA - 390 007 , INDIA\nThis is an authenticated intimation / statement . Customers are requested to immediately notify the Bank of any discrepancy in the statement",
+  "source": "ocr",
+  "skippedPages": [],
+  "logs": [
+    {
+      "level": "info",
+      "stage": "ocr",
+      "message": "OCR started for 1 page(s).",
+      "pagesProcessed": 1
+    },
+    {
+      "level": "info",
+      "stage": "ocr",
+      "message": "OCR completed for 1 page(s).",
+      "pagesProcessed": 1,
+      "durationMs": 2019
+    },
+    {
+      "level": "info",
+      "stage": "ocr",
+      "message": "36 line(s) detected across 1 page(s)."
+    }
+  ]
+}
