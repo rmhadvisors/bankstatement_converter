@@ -28,6 +28,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { convertPdfViaApi, ConversionValidationError } from "@/lib/conversion-api";
 import { saveExcelBlob, getExcelBlob, deleteExcelBlob } from "@/lib/db";
+import { ConverterTabs } from "@/components/converter-tabs";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -47,6 +48,8 @@ type Conversion = {
   file_name: string;
   file_size: number;
   type: "pdf" | "scanned";
+  // Missing on entries saved before credit card support: those are bank conversions.
+  statement_type?: "bank" | "credit_card";
   status: "queued" | "converting" | "converted" | "failed";
   rows_count: number;
   created_at: string;
@@ -202,6 +205,7 @@ function Dashboard() {
         file_name: file.name,
         file_size: file.size,
         type: mode,
+        statement_type: "bank",
         status: "converting",
         rows_count: 0,
         created_at: new Date().toISOString(),
@@ -381,6 +385,7 @@ function Dashboard() {
           <div className="mx-auto max-w-6xl grid gap-6 lg:grid-cols-1">
             {view === "home" && (
             <div className="space-y-6">
+              <ConverterTabs />
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard label="Total" value={stats.total} />
                 <StatCard label="Converted" value={stats.done} accent="text-emerald-600" />
@@ -553,7 +558,8 @@ function Dashboard() {
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{c.file_name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {fmtSize(c.file_size)} - {c.type === "pdf" ? "PDF" : "Scanned"} -{" "}
+                          {fmtSize(c.file_size)} -{" "}
+                          {c.statement_type === "credit_card" ? "Credit card" : c.type === "pdf" ? "PDF" : "Scanned"} -{" "}
                           {new Date(c.created_at).toLocaleString()}
                         </div>
                       </div>

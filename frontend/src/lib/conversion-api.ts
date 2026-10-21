@@ -80,7 +80,8 @@ async function throwConversionError(response: Response): Promise<never> {
     });
   }
 
-  throw new Error(message);
+  // code lets callers react to specific failures (e.g. PASSWORD_REQUIRED) without parsing text.
+  throw Object.assign(new Error(message), { code });
 }
 
 const POLL_INTERVAL_MS = 3000;
@@ -89,17 +90,8 @@ const POLL_INTERVAL_MS = 3000;
 // reverse proxy will hold a single request open. The backend runs it as a background job: this
 // submits the file, then polls for the result instead of waiting on one long request (which was
 // coming back as a bare 502 once the proxy gave up).
-export async function convertPdfViaApi(
-  file: File,
-  password = "",
-  scanned = false,
-): Promise<ApiConvertResult> {
-  const form = new FormData();
-  form.append("statement", file, file.name);
-  form.append("scanned", String(scanned));
-  form.append("password", password);
-
-  const submitResponse = await fetch(`${API_BASE_URL}/api/convert`, {
+async function submitAndPoll(route: string, form: FormData): Promise<Response> {
+  const submitResponse = await fetch(`${API_BASE_URL}${route}`, {
     method: "POST",
     body: form,
   });
@@ -112,7 +104,7 @@ export async function convertPdfViaApi(
 
   let response: Response;
   for (;;) {
-    response = await fetch(`${API_BASE_URL}/api/convert/${jobId}`);
+    response = await fetch(`${API_BASE_URL}${route}/${jobId}`);
     if (response.status !== 202) break;
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
@@ -120,7 +112,20 @@ export async function convertPdfViaApi(
   if (!response.ok) {
     await throwConversionError(response);
   }
+  return response;
+}
 
+export async function convertPdfViaApi(
+  file: File,
+  password = "",
+  scanned = false,
+): Promise<ApiConvertResult> {
+  const form = new FormData();
+  form.append("statement", file, file.name);
+  form.append("scanned", String(scanned));
+  form.append("password", password);
+
+  const response = await submitAndPoll("/api/convert", form);
   const blob = await response.blob();
   if (blob.size === 0) {
     throw new Error("Conversion returned an empty Excel file");
@@ -133,5 +138,40 @@ export async function convertPdfViaApi(
     rowsCount: Number(response.headers.get("x-transaction-count") || 0),
     fileName,
     blob,
+  };
+}
+
+export type ReconciliationStatus = "OK" | "MISMATCH" | "UNVERIFIED";
+
+export type CreditCardConvertResult = ApiConvertResult & {
+  reconciliationStatus: ReconciliationStatus;
+  reconciliationWarning: string;
+};
+
+// Errors carry the backend's code (PASSWORD_REQUIRED, WRONG_PASSWORD, NOT_A_CREDIT_CARD_STATEMENT, ...)
+// on error.code and its message on error.message.
+export async function convertCreditCardViaApi(
+  file: File,
+  password = "",
+): Promise<CreditCardConvertResult> {
+  const form = new FormData();
+  form.append("statement", file, file.name);
+  form.append("password", password);
+
+  const response = await submitAndPoll("/api/credit-card/convert", form);
+  const blob = await response.blob();
+  if (blob.size === 0) {
+    throw new Error("Conversion returned an empty Excel file");
+  }
+
+  const fileName = getDownloadFileName(response, file.name);
+  downloadBlob(blob, fileName);
+
+  return {
+    rowsCount: Number(response.headers.get("x-transaction-count") || 0),
+    fileName,
+    blob,
+    reconciliationStatus: (response.headers.get("x-reconciliation-status") || "UNVERIFIED") as ReconciliationStatus,
+    reconciliationWarning: decodeURIComponent(response.headers.get("x-reconciliation-warning") || ""),
   };
 }
