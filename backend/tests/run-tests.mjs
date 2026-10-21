@@ -21,4 +21,12 @@ await import("./federal-ocr-tolerant.test.mjs");
 await import("./idbi-finacle-scanned-ocr.test.mjs");
 await import("./apna-sahakari.test.mjs");
 await import("./icici-0836-scanned.test.mjs");
+await import("./creditcard/ccCommon.test.mjs");
+await import("./creditcard/ccValidation.test.mjs");
+await import("./creditcard/ccDetector.test.mjs");
+await import("./creditcard/ccConverter.test.mjs");
+await import("./creditcard/hdfc45.test.mjs");
+await import("./creditcard/idfc.test.mjs");
+await import("./creditcard/axis.test.mjs");
+await import("./creditcard/server.test.mjs");
 

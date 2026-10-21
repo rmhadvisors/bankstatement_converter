@@ -14,6 +14,7 @@ import { runPdfContentPreflight } from "./pdfPreflight.js";
 import { buildValidationReport } from "./validation.js";
 import { roundMoney } from "./parsers/common.js";
 import { isBccbJune2026Statement, buildBccbJune2026Accounts } from "./verifiedStatements/bccbJune2026.js";
+import { isCreditCardStatement } from "../creditcard/ccDetector.js";
 
 // Every format's Excel output is deliberately just the bare "Statement of Account" table (see
 // excelWriter.js's addStatementSheet) -- no Validation & Reconciliation, Error Logs, or OCR
@@ -182,6 +183,15 @@ async function convertPdfToStatement(filePath, options = {}) {
     return { accounts, logs };
   }
 
+  // A card statement run through the bank parsers comes out as garbage rows rather than an error.
+  // isCreditCardStatement needs "minimum amount due" plus two other card-only fields, which no
+  // bank account statement prints.
+  if (isCreditCardStatement(extraction.text || extraction.lines || [])) {
+    const error = new Error("This looks like a credit card statement. Use the Credit Card converter instead.");
+    error.code = "CREDIT_CARD_STATEMENT";
+    throw error;
+  }
+
   const parseStart = Date.now();
   let statement = parseStatement(extraction);
 
@@ -316,4 +326,4 @@ async function convertPdfToExcelFile(filePath, outputPath, options = {}) {
   return statement;
 }
 
-export { convertPdfToStatement, convertPdfToExcelBuffer, convertPdfToExcelFile };
+export { convertPdfToStatement, convertPdfToExcelBuffer, convertPdfToExcelFile, verifyWorkbookBuffer };

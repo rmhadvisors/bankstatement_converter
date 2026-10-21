@@ -1,9 +1,16 @@
 import { createServer } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import process from "node:process";
+// Static, not await import() per job: in dev (`node --watch-path=./src`) a source file read for the
+// first time mid-request bumps its Windows last-access time, which the watcher reports as a change
+// and restarts the server -- dropping every in-memory job (the client then polls into a 404).
+import { convertPdfToExcelBuffer } from "./parsers/converter.js";
+import { convertCreditCardToExcelBuffer } from "./creditcard/ccConverter.js";
 
 try {
   process.loadEnvFile();
@@ -13,8 +20,12 @@ try {
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const FRONTEND_DIST = join(__dirname, "..", "..", "frontend", "dist");
-const PORT = Number(process.env.PORT) || 8080;
+// PORT=0 (tests) means "any free port" -- `Number(PORT) || 8080` turned it into 8080 and collided
+// with the dev server. Unset or empty PORT still means 8080.
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+const UPLOAD_DIR = join(tmpdir(), "statement-savior-conversions");
+const STALE_UPLOAD_MS = 60 * 60 * 1000;
 
 // Frontend and backend deploy as separate origins (e.g. Vercel + Hostinger), so the browser
 // enforces CORS on every /api request. ALLOWED_ORIGIN takes a comma-separated list to cover a
@@ -32,6 +43,10 @@ function applyCors(req, res) {
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader(
+      "Access-Control-Expose-Headers",
+      "Content-Disposition, X-Transaction-Count, X-Reconciliation-Status, X-Reconciliation-Difference, X-Reconciliation-Warning",
+    );
   }
 }
 
@@ -48,6 +63,11 @@ const CONVERSION_ERROR_STATUS = {
   OCR_NO_RESULTS: 400,
   PDF_NO_READABLE_CONTENT: 422,
   PDF_PREFLIGHT_OPEN_TOO_SLOW: 422,
+  CREDIT_CARD_STATEMENT: 422,
+  WRONG_PASSWORD: 400,
+  NOT_A_CREDIT_CARD_STATEMENT: 422,
+  UNSUPPORTED_ISSUER: 422,
+  ENCRYPTED_SCAN_UNSUPPORTED: 422,
 };
 
 // Conversion (OCR especially) can run for minutes on a large scanned PDF -- far longer than any
@@ -59,15 +79,50 @@ const CONVERSION_ERROR_STATUS = {
 const jobs = new Map();
 const JOB_TTL_MS = 30 * 60 * 1000;
 
-function createJob() {
+// Card jobs are deleted as soon as their workbook is downloaded; this is only the fallback for a
+// client that never comes back for it.
+const CARD_JOB_TTL_MS = 10 * 60 * 1000;
+
+// kind is "bank" or "credit_card": each status route only serves its own kind of job.
+function createJob(kind) {
   const id = crypto.randomUUID();
-  jobs.set(id, { status: "pending" });
+  jobs.set(id, { status: "pending", kind });
   return id;
 }
 
-function finishJob(id, update) {
-  jobs.set(id, { ...update, expiresAt: Date.now() + JOB_TTL_MS });
-  setTimeout(() => jobs.delete(id), JOB_TTL_MS).unref();
+function finishJob(id, update, ttlMs = JOB_TTL_MS) {
+  jobs.set(id, { kind: jobs.get(id)?.kind, ...update, expiresAt: Date.now() + ttlMs });
+  setTimeout(() => jobs.delete(id), ttlMs).unref();
+}
+
+async function saveUpload(file) {
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  const extension = /^\.[a-z0-9]{1,5}$/i.test(extname(file.name)) ? extname(file.name) : ".pdf";
+  const filePath = join(UPLOAD_DIR, `${crypto.randomUUID()}${extension}`);
+  await writeFile(filePath, Buffer.from(await file.arrayBuffer()));
+  return filePath;
+}
+
+// The OCR step caches its text next to the upload as <upload>.ocr.json -- statement contents, so
+// it goes with the upload.
+async function removeUpload(filePath) {
+  await Promise.all(
+    [filePath, `${filePath}.ocr.json`].map((target) => rm(target, { force: true }).catch(() => {})),
+  );
+}
+
+// Leftovers from a crash or restart mid-conversion. Only run at startup, when no job is in flight.
+async function sweepStaleUploads() {
+  const names = await readdir(UPLOAD_DIR).catch(() => []);
+  const cutoff = Date.now() - STALE_UPLOAD_MS;
+  await Promise.all(
+    names.map(async (name) => {
+      const target = join(UPLOAD_DIR, name);
+      const info = await stat(target).catch(() => null);
+      if (info?.isFile() && info.mtimeMs < cutoff)
+        await rm(target, { force: true }).catch(() => {});
+    }),
+  );
 }
 
 const MIME_TYPES = {
@@ -127,7 +182,6 @@ function sanitizeWorkbookName(fileName) {
 // this promise directly.
 async function runConversionJob(jobId, tempFilePath, fileName, options) {
   try {
-    const { convertPdfToExcelBuffer } = await import("./parsers/converter.js");
     const result = await convertPdfToExcelBuffer(tempFilePath, options);
     const workbookName = sanitizeWorkbookName(fileName);
     const transactionCount = result.statement.accounts
@@ -147,8 +201,36 @@ async function runConversionJob(jobId, tempFilePath, fileName, options) {
     }
     finishJob(jobId, { status: "error", payload });
   } finally {
-    const { rm } = await import("node:fs/promises");
-    await rm(tempFilePath, { force: true }).catch(() => {});
+    await removeUpload(tempFilePath);
+  }
+}
+
+// Same background-job shape as runConversionJob. Logs carry only the error code or stack: statement
+// text, card numbers and passwords never reach the console.
+async function runCreditCardJob(jobId, tempFilePath, fileName, options) {
+  try {
+    const { buffer, statement } = await convertCreditCardToExcelBuffer(tempFilePath, options);
+    finishJob(
+      jobId,
+      {
+        status: "done",
+        buffer,
+        workbookName: sanitizeWorkbookName(fileName),
+        transactionCount: statement.transactions.length,
+        reconciliation: statement.reconciliation,
+      },
+      CARD_JOB_TTL_MS,
+    );
+  } catch (error) {
+    const payload = getConversionErrorPayload(error);
+    if (payload.status >= 500) {
+      console.error("/api/credit-card/convert failed:", error?.stack || error?.message);
+    } else {
+      console.warn(`/api/credit-card/convert rejected: ${payload.code}`);
+    }
+    finishJob(jobId, { status: "error", payload }, CARD_JOB_TTL_MS);
+  } finally {
+    await removeUpload(tempFilePath);
   }
 }
 
@@ -192,19 +274,8 @@ async function handleConvertSubmit(request) {
     );
   }
 
-  const [{ mkdir, writeFile }, { tmpdir }, { join: pathJoin, extname: pathExtname }] = await Promise.all([
-    import("node:fs/promises"),
-    import("node:os"),
-    import("node:path"),
-  ]);
-
-  const tempDir = pathJoin(tmpdir(), "statement-savior-conversions");
-  await mkdir(tempDir, { recursive: true });
-  const extension = pathExtname(file.name) || ".pdf";
-  const tempFilePath = pathJoin(tempDir, `${crypto.randomUUID()}${extension}`);
-  await writeFile(tempFilePath, Buffer.from(await file.arrayBuffer()));
-
-  const jobId = createJob();
+  const tempFilePath = await saveUpload(file);
+  const jobId = createJob("bank");
   runConversionJob(jobId, tempFilePath, file.name, { password, scanned });
 
   return Response.json({ jobId }, { status: 202 });
@@ -212,7 +283,7 @@ async function handleConvertSubmit(request) {
 
 function handleConvertStatus(jobId) {
   const job = jobs.get(jobId);
-  if (!job) {
+  if (!job || job.kind !== "bank") {
     return Response.json({ code: "JOB_NOT_FOUND", message: "Unknown or expired conversion job." }, { status: 404 });
   }
 
@@ -235,6 +306,80 @@ function handleConvertStatus(jobId) {
       "X-Transaction-Count": String(job.transactionCount),
     },
   });
+}
+
+// Card endpoints answer errors as { error, code, message }.
+function cardError(code, message, status) {
+  return Response.json({ error: message, code, message }, { status });
+}
+
+async function handleCreditCardSubmit(request) {
+  const form = await request.formData();
+  const file = form.get("statement") || form.get("file");
+  const passwordField = form.get("password");
+  const password = typeof passwordField === "string" ? passwordField : "";
+
+  if (!(file instanceof File)) {
+    return cardError("FILE_REQUIRED", "Upload a credit card statement to convert.", 400);
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return cardError("FILE_TOO_LARGE", "Files must be 100 MB or smaller.", 400);
+  }
+  if (
+    !/\.(?:pdf|jpe?g|png|tiff?)$/i.test(file.name) &&
+    file.type !== "application/pdf" &&
+    !file.type.startsWith("image/")
+  ) {
+    return cardError("FILE_TYPE_NOT_SUPPORTED", "Upload the statement as a PDF or an image.", 400);
+  }
+
+  const tempFilePath = await saveUpload(file);
+  const jobId = createJob("credit_card");
+  runCreditCardJob(jobId, tempFilePath, file.name, { password });
+  return Response.json({ jobId }, { status: 202 });
+}
+
+// The workbook is dropped from memory once the response has been fully written ('finish'), not
+// when it is handed over: a download that breaks off midway leaves the job for a retry.
+function handleCreditCardStatus(jobId, res) {
+  const job = jobs.get(jobId);
+  if (!job || job.kind !== "credit_card") {
+    return cardError("JOB_NOT_FOUND", "Unknown or expired conversion job.", 404);
+  }
+  if (job.status === "pending") {
+    return Response.json({ status: "pending" }, { status: 202 });
+  }
+  if (job.status === "error") {
+    const { payload } = job;
+    return Response.json(
+      {
+        error: payload.message,
+        code: payload.code,
+        message: payload.message,
+        ...(payload.details || {}),
+      },
+      { status: payload.status },
+    );
+  }
+
+  const { reconciliation } = job;
+  res.once("finish", () => jobs.delete(jobId));
+  return new Response(job.buffer, {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${job.workbookName.replace(/["\r\n]/g, "")}"`,
+      "X-Transaction-Count": String(job.transactionCount),
+      "X-Reconciliation-Status": reconciliation.status,
+      "X-Reconciliation-Difference": String(reconciliation.checks[0]?.difference ?? ""),
+      // Headers must be ASCII; the client decodeURIComponent()s this.
+      "X-Reconciliation-Warning": encodeURIComponent(reconciliation.warnings.join(" ")),
+    },
+  });
+}
+
+async function sendWebResponse(res, webResponse) {
+  res.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
+  res.end(Buffer.from(await webResponse.arrayBuffer()));
 }
 
 async function serveStatic(pathname, res) {
@@ -285,18 +430,24 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (url.pathname === "/api/convert" && req.method === "POST") {
-      const webRequest = await nodeRequestToWebRequest(req);
-      const webResponse = await handleConvertSubmit(webRequest);
-      res.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
-      res.end(Buffer.from(await webResponse.arrayBuffer()));
+      await sendWebResponse(res, await handleConvertSubmit(await nodeRequestToWebRequest(req)));
       return;
     }
 
     const jobMatch = url.pathname.match(/^\/api\/convert\/([^/]+)$/);
     if (jobMatch && req.method === "GET") {
-      const webResponse = handleConvertStatus(jobMatch[1]);
-      res.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
-      res.end(Buffer.from(await webResponse.arrayBuffer()));
+      await sendWebResponse(res, handleConvertStatus(jobMatch[1]));
+      return;
+    }
+
+    if (url.pathname === "/api/credit-card/convert" && req.method === "POST") {
+      await sendWebResponse(res, await handleCreditCardSubmit(await nodeRequestToWebRequest(req)));
+      return;
+    }
+
+    const cardJobMatch = url.pathname.match(/^\/api\/credit-card\/convert\/([^/]+)$/);
+    if (cardJobMatch && req.method === "GET") {
+      await sendWebResponse(res, handleCreditCardStatus(cardJobMatch[1], res));
       return;
     }
 
@@ -314,6 +465,10 @@ const server = createServer(async (req, res) => {
   }
 });
 
+await sweepStaleUploads().catch((error) =>
+  console.warn("Stale upload sweep failed:", error?.message),
+);
+
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Backend listening on http://0.0.0.0:${PORT}`);
+  console.log(`Backend listening on http://0.0.0.0:${server.address().port}`);
 });
