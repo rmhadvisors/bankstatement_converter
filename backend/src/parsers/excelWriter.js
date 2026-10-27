@@ -446,6 +446,57 @@ function populateStatementWorkbook(workbook, statement) {
   }
 
   addStatementSheet(workbook, statement);
+  if (statement.monthlyCheck?.length) addMonthlyCheckSheet(workbook, statement.monthlyCheck);
+}
+
+// Per-month bank-printed summary vs converted totals, for multi-month (merged) statements.
+function addMonthlyCheckSheet(workbook, months) {
+  const sheet = workbook.addWorksheet("Monthly Check");
+  const header = sheet.getRow(1);
+  header.values = [
+    "Month",
+    "Pages",
+    "Opening Balance",
+    "Transactions",
+    "Bank Debits",
+    "Converted Debits",
+    "Bank Credits",
+    "Converted Credits",
+    "Bank Dr Count",
+    "Converted Dr Count",
+    "Bank Cr Count",
+    "Converted Cr Count",
+    "Bank Closing",
+    "Converted Closing",
+    "Balance Breaks",
+    "Status",
+  ];
+  styleHeader(header);
+  for (const month of months) {
+    sheet.addRow([
+      month.month,
+      month.pages,
+      month.opening,
+      month.transactions,
+      month.bankDebits,
+      month.debits,
+      month.bankCredits,
+      month.credits,
+      month.bankDrCount,
+      month.drCount,
+      month.bankCrCount,
+      month.crCount,
+      month.bankClosing,
+      month.closing,
+      month.balanceBreaks,
+      month.status,
+    ]);
+  }
+  for (const column of [3, 5, 6, 7, 8, 13, 14]) sheet.getColumn(column).numFmt = "#,##0.00";
+  sheet.columns.forEach((column) => {
+    column.width = 16;
+  });
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
 }
 
 async function buildWorkbookBuffer(statement) {

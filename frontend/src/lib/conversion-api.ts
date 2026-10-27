@@ -84,6 +84,11 @@ async function throwConversionError(response: Response): Promise<never> {
 }
 
 const POLL_INTERVAL_MS = 3000;
+// A long OCR job is polled for as long as it runs; only this many consecutive failed polls
+// (network blip, backend restart) give up.
+const MAX_POLL_FAILURES = 10;
+
+export type ConversionProgress = { status: string; page?: number; totalPages?: number };
 
 // Conversion (OCR especially, on a large scanned PDF) can take minutes -- far longer than any
 // reverse proxy will hold a single request open. The backend runs it as a background job: this
@@ -93,6 +98,7 @@ export async function convertPdfViaApi(
   file: File,
   password = "",
   scanned = false,
+  onProgress?: (progress: ConversionProgress) => void,
 ): Promise<ApiConvertResult> {
   const form = new FormData();
   form.append("statement", file, file.name);
@@ -111,9 +117,19 @@ export async function convertPdfViaApi(
   const { jobId } = (await submitResponse.json()) as { jobId: string };
 
   let response: Response;
+  let failures = 0;
   for (;;) {
-    response = await fetch(`${API_BASE_URL}/api/convert/${jobId}`);
+    try {
+      response = await fetch(`${API_BASE_URL}/api/convert/${jobId}`);
+      failures = 0;
+    } catch (error) {
+      if ((failures += 1) >= MAX_POLL_FAILURES) throw error;
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      continue;
+    }
     if (response.status !== 202) break;
+    const progress = (await response.json().catch(() => null)) as ConversionProgress | null;
+    if (progress) onProgress?.(progress);
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 

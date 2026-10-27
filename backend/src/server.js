@@ -54,8 +54,9 @@ const CONVERSION_ERROR_STATUS = {
 // reverse proxy in front of this process (Hostinger's included) will hold a request open, which is
 // what was turning long conversions into a bare 502 with no error message. Jobs run in the
 // background instead: POST starts one and returns immediately, GET polls for the result. An
-// in-memory Map is enough here (single Node process, no queue infra) -- entries are swept after
-// JOB_TTL_MS so a client that never polls again doesn't leak memory.
+// in-memory Map is enough here (single Node process, no queue infra) -- finished entries are swept
+// JOB_TTL_MS after completion (never while running) so a client that never polls again doesn't
+// leak memory.
 const jobs = new Map();
 const JOB_TTL_MS = 30 * 60 * 1000;
 
@@ -128,7 +129,10 @@ function sanitizeWorkbookName(fileName) {
 async function runConversionJob(jobId, tempFilePath, fileName, options) {
   try {
     const { convertPdfToExcelBuffer } = await import("./parsers/converter.js");
-    const result = await convertPdfToExcelBuffer(tempFilePath, options);
+    const result = await convertPdfToExcelBuffer(tempFilePath, {
+      ...options,
+      onProgress: ({ page, totalPages }) => jobs.set(jobId, { status: "processing", page, totalPages }),
+    });
     const workbookName = sanitizeWorkbookName(fileName);
     const transactionCount = result.statement.accounts
       ? result.statement.accounts.reduce((sum, account) => sum + account.transactions.length, 0)
@@ -149,6 +153,8 @@ async function runConversionJob(jobId, tempFilePath, fileName, options) {
   } finally {
     const { rm } = await import("node:fs/promises");
     await rm(tempFilePath, { force: true }).catch(() => {});
+    // extractScannedFile caches its OCR result next to the input file.
+    await rm(`${tempFilePath}.ocr.json`, { force: true }).catch(() => {});
   }
 }
 
@@ -216,8 +222,8 @@ function handleConvertStatus(jobId) {
     return Response.json({ code: "JOB_NOT_FOUND", message: "Unknown or expired conversion job." }, { status: 404 });
   }
 
-  if (job.status === "pending") {
-    return Response.json({ status: "pending" }, { status: 202 });
+  if (job.status === "pending" || job.status === "processing") {
+    return Response.json(job, { status: 202 });
   }
 
   if (job.status === "error") {
@@ -259,10 +265,19 @@ async function serveStatic(pathname, res) {
   createReadStream(filePath).pipe(res);
 }
 
+// Multipart framing and the password field on top of a 100 MB file.
+const MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024;
+
+// Returns null once the body exceeds MAX_REQUEST_BYTES, so an oversized upload is never buffered.
 async function nodeRequestToWebRequest(req) {
   const chunks = [];
+  let size = 0;
   if (req.method !== "GET" && req.method !== "HEAD") {
-    for await (const chunk of req) chunks.push(chunk);
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > MAX_REQUEST_BYTES) return null;
+      chunks.push(chunk);
+    }
   }
   const body = chunks.length ? Buffer.concat(chunks) : undefined;
   return new Request(`http://${req.headers.host}${req.url}`, {
@@ -286,7 +301,9 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === "/api/convert" && req.method === "POST") {
       const webRequest = await nodeRequestToWebRequest(req);
-      const webResponse = await handleConvertSubmit(webRequest);
+      const webResponse = webRequest
+        ? await handleConvertSubmit(webRequest)
+        : Response.json({ code: "FILE_TOO_LARGE", message: "Files must be 100 MB or smaller." }, { status: 413 });
       res.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
       res.end(Buffer.from(await webResponse.arrayBuffer()));
       return;

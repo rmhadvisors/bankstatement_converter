@@ -22,3 +22,4 @@ await import("./idbi-finacle-scanned-ocr.test.mjs");
 await import("./apna-sahakari.test.mjs");
 await import("./icici-0836-scanned.test.mjs");
 
+await import("./hdfc-merged-apr25-mar26.test.mjs");
