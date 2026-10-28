@@ -91,7 +91,10 @@ function isHdfcOcrLayout(lines) {
     /\bHDFCBANK\b/i.test(headerText);
   if (!hasHdfcMarker) return false;
   if (/BASSEIN\s+CATHOLIC\s+CO-OP\s+BANK/i.test(headerText)) return false;
-  return /(?:Statement of account|tatement of accoun)/i.test(headerText);
+  // HDFC's own column headers ("Narration ... Withdrawal Amt. Deposit Amt. Closing Balance"):
+  // other banks quote "HDFC BANK" in narrations but never print these.
+  const hasHdfcColumns = /Narration/i.test(headerText) && /With\s*drawal\s*Amt/i.test(headerText) && /Deposit\s*Amt/i.test(headerText);
+  return hasHdfcColumns && /(?:Statement of account|tatement of accoun)/i.test(headerText);
 }
 
 function isAmountLine(text) {

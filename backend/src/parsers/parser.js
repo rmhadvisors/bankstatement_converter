@@ -30,6 +30,7 @@ import { isPassbookLayout, parsePassbookStatement } from "./passbookParser.js";
 import { buildValidationReport, correctDebitCreditByBalance, removeDuplicateTransactions } from "./validation.js";
 import { detectBank } from "./parsers/detector.js";
 import { isAxisLayout, parseAxisTransactions } from "./parsers/axisParser.js";
+import { isAxisReportLayout, parseAxisReportTransactions } from "./parsers/axisReportParser.js";
 import { isBankOfIndiaLayout, parseBankOfIndiaTransactions } from "./parsers/bankOfIndiaParser.js";
 import { isCanaraLayout, parseCanaraTransactions } from "./parsers/canaraParser.js";
 import { isFederalLayout, parseFederalTransactions } from "./parsers/federalParser.js";
@@ -1087,6 +1088,11 @@ function parseStatement(extraction) {
     transactions = hdfcWordBox.transactions;
     parserPrintedTotals = hdfcWordBox.printedTotals;
     logs.push(...hdfcWordBox.logs);
+  } else if (isAxisReportLayout(lines)) {
+    detectedFormat = "axis-report";
+    const axisReport = parseAxisReportTransactions(lines);
+    transactions = axisReport.transactions;
+    parserPrintedTotals = axisReport.printedTotals;
   } else if (isBccbPassbookLayout(lines)) {
     detectedFormat = "bccb-passbook";
     const passbook = parseBccbPassbookTransactions(lines);
@@ -1289,7 +1295,8 @@ function parseStatement(extraction) {
     const vvsb = parseVvsbTransactions(lines);
     transactions = vvsb.transactions;
     parserPrintedTotals = vvsb.printedTotals;
-  } else if (isHdfcOcrLayout(lines)) {
+  } else if (extraction.source !== "pdf" && isHdfcOcrLayout(lines)) {
+    // OCR'd text only: a native text layer that mentions HDFC in narrations is another bank's statement.
     detectedFormat = "hdfc-ocr";
     const hdfc = parseHdfcOcrStatement(lines);
     transactions = hdfc.transactions;
@@ -1327,7 +1334,9 @@ function parseStatement(extraction) {
   });
 
   const beforeDedupe = transactions.length;
-  transactions = removeDuplicateTransactions(transactions, logs);
+  // Axis report rows carry their own S.NO, so identical rows are real (ATM withdrawal, reversal,
+  // same withdrawal again lands on the same balance) and must not be dropped.
+  if (detectedFormat !== "axis-report") transactions = removeDuplicateTransactions(transactions, logs);
   if (transactions.length !== beforeDedupe) {
     logs.push({
       level: "warn",
