@@ -49,3 +49,10 @@ test("ccDetector: a bank narration mentioning a card bill is still a bank statem
     "STATEMENT OF ACCOUNT IFSC SBIN0001 Opening Balance\nCREDIT CARD PAYMENT HDFC due date 12/03 Withdrawals Deposits";
   assert.equal(classifyStatement(text), "bank");
 });
+
+test("ccDetector: a transaction-history export with no dues but a masked card number is a card statement", () => {
+  const text =
+    "Customer Name Card Account No\nStatement Period\nCard Number : 4315 XXXX XXXX 9005\n15-MAY-25 74766515135519970019322 IND*AMAZON 0.00 298.00";
+  assert.equal(classifyStatement(text), "credit_card");
+  assert.equal(classifyStatement("ATM WDL 4315XXXXXXXX9005 Opening Balance IFSC"), "bank");
+});

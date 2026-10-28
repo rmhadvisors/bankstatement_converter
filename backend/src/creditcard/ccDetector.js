@@ -50,9 +50,14 @@ const BANK_SIGNALS = [
 
 // "Minimum amount due" is what makes this a card statement: no bank or loan account statement
 // prints it. Requiring two more card-only signals keeps a bank statement whose narration happens
-// to mention a credit card bill from being misclassified.
+// to mention a credit card bill from being misclassified. Transaction-history exports (e.g. ICICI's
+// yearly export, whose title is an image) print no dues at all, so a "Card Number" label followed
+// by a masked card number also counts.
 function isCreditCardStatement(textOrLines) {
   const text = linesToText(textOrLines);
+  if (/card\s+(?:account\s+)?(?:no|number)\.?\s*:?\s*\d{4}\s*[X*]{4}\s*[X*]{4}\s*\d{4}\b/i.test(text)) {
+    return true;
+  }
   if (!/minimum\s+(?:amount\s+|payment\s+)?(?:due|payable)/i.test(text)) return false;
   return CARD_SIGNALS.filter((re) => re.test(text)).length >= 2;
 }
