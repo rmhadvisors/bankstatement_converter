@@ -31,6 +31,8 @@ import { buildValidationReport, correctDebitCreditByBalance, removeDuplicateTran
 import { detectBank } from "./parsers/detector.js";
 import { isAxisLayout, parseAxisTransactions } from "./parsers/axisParser.js";
 import { isAxisReportLayout, parseAxisReportTransactions } from "./parsers/axisReportParser.js";
+import { isIdfcFirstLayout, parseIdfcFirstTransactions } from "./parsers/idfcFirstParser.js";
+import { isIdbiRep31OcrLayout, parseIdbiRep31OcrTransactions } from "./parsers/idbiRep31OcrParser.js";
 import { isBankOfIndiaLayout, parseBankOfIndiaTransactions } from "./parsers/bankOfIndiaParser.js";
 import { isCanaraLayout, parseCanaraTransactions } from "./parsers/canaraParser.js";
 import { isFederalLayout, parseFederalTransactions } from "./parsers/federalParser.js";
@@ -1093,6 +1095,18 @@ function parseStatement(extraction) {
     const axisReport = parseAxisReportTransactions(lines);
     transactions = axisReport.transactions;
     parserPrintedTotals = axisReport.printedTotals;
+  } else if (isIdbiRep31OcrLayout(extraction)) {
+    detectedFormat = "idbi-rep31-ocr";
+    const rep31 = parseIdbiRep31OcrTransactions(extraction);
+    transactions = rep31.transactions;
+    parserPrintedTotals = rep31.printedTotals;
+    for (const note of rep31.notes) logs.push({ level: "warn", stage: "parse", message: note });
+    for (const issue of rep31.reconciliationIssues) logs.push({ level: "error", stage: "parse", message: issue });
+  } else if (extraction.source === "pdf" && isIdfcFirstLayout(lines)) {
+    detectedFormat = "idfc-first";
+    const idfc = parseIdfcFirstTransactions(lines);
+    transactions = idfc.transactions;
+    parserPrintedTotals = idfc.printedTotals;
   } else if (isBccbPassbookLayout(lines)) {
     detectedFormat = "bccb-passbook";
     const passbook = parseBccbPassbookTransactions(lines);
