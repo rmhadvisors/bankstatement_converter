@@ -33,3 +33,6 @@ tmp/
 /private
 /private.b64
 /private.pub
+
+# Client bank statements used as local fixtures; never commit.
+backend/tests/fixtures/bank/
