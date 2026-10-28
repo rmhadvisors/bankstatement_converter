@@ -1336,6 +1336,10 @@ function parseStatement(extraction) {
     detectedFormat !== "apna-sahakari" &&
     // Reversals are negative deposits there; the per-month balance check already validated rows.
     detectedFormat !== "hdfc-wordbox" &&
+    // Amount and DR/CR side are printed explicitly; rewriting them from the balance chain would
+    // hide a statement that doesn't reconcile.
+    detectedFormat !== "axis-report" &&
+    detectedFormat !== "idfc-first" &&
     !(detectedFormat === "columnar-ocr" && isAxisOcrLayout(lines))
   ) {
     transactions = correctDebitCreditByBalance(transactions);

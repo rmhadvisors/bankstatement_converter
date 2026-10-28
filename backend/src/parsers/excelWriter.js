@@ -251,14 +251,33 @@ function addStatementSheet(workbook, statement) {
   sheet.views = [{ state: "frozen", ySplit: 1 }];
   sheet.autoFilter = "A1:J1";
 
+  // Real Excel dates (shown dd-mm-yyyy); a missing/invalid date stays an empty cell.
+  const excelDate = (date) => (date instanceof Date && !Number.isNaN(date.getTime()) ? date : null);
+  // Opening Balance first, at the chronological start (the end for a newest-first statement).
+  const openingBalance = statement.printedTotals?.openingBalance ?? statement.reconciliation?.openingBalance ?? null;
+  const chronological = isChronological(transactions);
+  const openingRow = ["", "", "Opening Balance", "", "", "", null, null, openingBalance, ""];
+  // Some parsers already emit the bank's own opening line (BOB "Opening Balance", SBI "BROUGHT FORWARD").
+  const isOpeningLine = (row) => row && !row.withdrawal && !row.deposit && /^(?:opening balance|brought forward|balance b\/?f|b\/f)\b/i.test(String(row.particulars || "").trim());
+  const hasOwnOpening = isOpeningLine(transactions[0]) || isOpeningLine(transactions.at(-1));
+  const addOpening = openingBalance !== null && !hasOwnOpening;
+  if (addOpening && chronological) sheet.addRow(openingRow);
+
   for (const transaction of transactions) {
+    // `chequeNo` is the cheque/instrument number, except in parsers that also carry a separate
+    // `chequeDetails` field (IDBI ledger, Federal; even when it's null on a row): there `chequeNo`
+    // holds the bank's Tran ID. HDFC sets both to the same value, which is a cheque/ref number.
+    const hasChequeField = "chequeDetails" in transaction;
+    const tranId = transaction.tranId || (hasChequeField && transaction.chequeNo !== transaction.chequeDetails ? transaction.chequeNo : "") || "";
+    const cheque = hasChequeField ? transaction.chequeDetails : transaction.chequeNo;
     sheet.addRow([
-      formatDDMMYYYY(transaction.date),
-      formatDDMMYYYY(transaction.valueDate || transaction.date),
+      excelDate(transaction.date),
+      excelDate(transaction.valueDate || transaction.date),
       transaction.particulars,
       transaction.tranType || "",
-      transaction.chequeNo || "",
-      transaction.chequeDetails || "",
+      tranId ? String(tranId) : "",
+      // Text, so leading zeros survive (000019, 029669).
+      cheque !== null && cheque !== undefined ? String(cheque) : "",
       transaction.withdrawal,
       transaction.deposit,
       transaction.balance,
@@ -268,6 +287,7 @@ function addStatementSheet(workbook, statement) {
       transaction.type || "",
     ]);
   }
+  if (addOpening && !chronological) sheet.addRow(openingRow);
 
   const totals = getTotals({ transactions, printedTotals: statement.printedTotals });
   const totalRow = sheet.addRow([
@@ -290,6 +310,8 @@ function addStatementSheet(workbook, statement) {
   for (const column of ["G", "H", "I"]) {
     sheet.getColumn(column).numFmt = '#,##0.00;[Red]-#,##0.00;"-"';
   }
+  for (const column of ["A", "B"]) sheet.getColumn(column).numFmt = "dd-mm-yyyy";
+  for (const column of ["E", "F"]) sheet.getColumn(column).numFmt = "@";
 
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
@@ -447,6 +469,19 @@ function populateStatementWorkbook(workbook, statement) {
 
   addStatementSheet(workbook, statement);
   if (statement.monthlyCheck?.length) addMonthlyCheckSheet(workbook, statement.monthlyCheck);
+  if (statement.review?.status === "needs_review") addReviewSheet(workbook, statement.review.reasons);
+}
+
+// A statement that doesn't reconcile gets a "Review Required" sheet, opened first, listing why.
+function addReviewSheet(workbook, reasons) {
+  const sheet = workbook.addWorksheet("Review Required", { properties: { tabColor: { argb: "FFFF0000" } } });
+  const title = sheet.addRow(["NEEDS REVIEW: this statement does not reconcile. Check these problems against the PDF before using the data."]);
+  title.font = { name: "Calibri", size: 14, bold: true, color: { argb: "FFC00000" } };
+  title.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF00" } };
+  reasons.forEach((reason, index) => sheet.addRow([`${index + 1}. ${reason}`]));
+  sheet.getColumn(1).width = 120;
+  sheet.getColumn(1).alignment = { wrapText: true, vertical: "top" };
+  workbook.views = [{ activeTab: workbook.worksheets.indexOf(sheet), firstSheet: 0, visibility: "visible" }];
 }
 
 // Per-month bank-printed summary vs converted totals, for multi-month (merged) statements.

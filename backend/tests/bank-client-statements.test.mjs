@@ -103,6 +103,7 @@ for (const expected of CASES) {
     assert.equal(sum(rows, "deposit"), expected.credits);
     assert.equal(rows.at(-1).balance, expected.closing);
     assert.equal(statement.reconciliation.status, "PASS");
+    assert.deepEqual(statement.review, { status: "ok", reasons: [] });
     assert.ok(rows.every((row) => row.date instanceof Date && !/KANDIVALI|\[MH\]|\(\d{3,4}\)$/.test(row.particulars)));
     expected.check?.(rows);
   });

@@ -164,9 +164,10 @@ test("Excel output is a single bare 'Statement of Account' sheet with a trailing
   assert.equal(cell("K1"), null);
 
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, range: 1, defval: null });
-  assert.equal(rows.length, 28); // 27 transaction rows + 1 trailing GRAND TOTAL row
+  assert.equal(rows.length, 29); // Opening Balance + 27 transaction rows + 1 trailing GRAND TOTAL row
+  assert.equal(rows[0][2], "Opening Balance");
   const totalRow = rows[rows.length - 1];
-  const transactionRows = rows.slice(0, -1);
+  const transactionRows = rows.slice(1, -1);
   assert.equal(totalRow[2], "GRAND TOTAL");
 
   let withdrawalSum = 0;

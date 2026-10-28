@@ -11,7 +11,7 @@ import { parseStatement } from "./parser.js";
 import { extractPdf } from "./pdfExtractor.js";
 import { extractPdfLocally, extractScannedFile } from "./ocrExtractor.js";
 import { runPdfContentPreflight } from "./pdfPreflight.js";
-import { buildValidationReport } from "./validation.js";
+import { buildValidationReport, reviewStatus } from "./validation.js";
 import { roundMoney } from "./parsers/common.js";
 import { isBccbJune2026Statement, buildBccbJune2026Accounts } from "./verifiedStatements/bccbJune2026.js";
 import { isCreditCardStatement } from "../creditcard/ccDetector.js";
@@ -316,6 +316,7 @@ async function convertPdfToStatement(filePath, options = {}) {
     }
   }
 
+  statement.review = reviewStatus(statement);
   return statement;
 }
 

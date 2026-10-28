@@ -139,7 +139,7 @@ export async function convertPdfViaApi(
   password = "",
   scanned = false,
   onProgress?: (progress: ConversionProgress) => void,
-): Promise<ApiConvertResult> {
+): Promise<BankConvertResult> {
   const form = new FormData();
   form.append("statement", file, file.name);
   form.append("scanned", String(scanned));
@@ -158,7 +158,25 @@ export async function convertPdfViaApi(
     rowsCount: Number(response.headers.get("x-transaction-count") || 0),
     fileName,
     blob,
+    ...readReviewHeaders(response),
   };
+}
+
+// "needs_review": the file converted but doesn't reconcile (balance chain or printed totals).
+export type BankConvertResult = ApiConvertResult & {
+  reviewStatus: "ok" | "needs_review";
+  reviewReasons: string[];
+};
+
+function readReviewHeaders(response: Response): Pick<BankConvertResult, "reviewStatus" | "reviewReasons"> {
+  let reviewReasons: string[] = [];
+  try {
+    reviewReasons = JSON.parse(decodeURIComponent(response.headers.get("x-review-reasons") || "%5B%5D"));
+  } catch {
+    reviewReasons = [];
+  }
+  const reviewStatus = response.headers.get("x-conversion-status") === "needs_review" ? "needs_review" : "ok";
+  return { reviewStatus, reviewReasons };
 }
 
 export type ReconciliationStatus = "OK" | "MISMATCH" | "UNVERIFIED";

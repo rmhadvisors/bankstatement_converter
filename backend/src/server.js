@@ -45,7 +45,7 @@ function applyCors(req, res) {
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     res.setHeader(
       "Access-Control-Expose-Headers",
-      "Content-Disposition, X-Transaction-Count, X-Reconciliation-Status, X-Reconciliation-Difference, X-Reconciliation-Warning",
+      "Content-Disposition, X-Transaction-Count, X-Reconciliation-Status, X-Reconciliation-Difference, X-Reconciliation-Warning, X-Conversion-Status, X-Review-Reasons",
     );
   }
 }
@@ -194,7 +194,7 @@ async function runConversionJob(jobId, tempFilePath, fileName, options) {
       ? result.statement.accounts.reduce((sum, account) => sum + account.transactions.length, 0)
       : (result.statement.transactions?.length ?? 0);
 
-    finishJob(jobId, { status: "done", buffer: result.buffer, workbookName, transactionCount });
+    finishJob(jobId, { status: "done", buffer: result.buffer, workbookName, transactionCount, review: result.statement.review });
   } catch (error) {
     const payload = getConversionErrorPayload(error);
     // A pre-flight validation rejection (bad/empty PDF) is an expected result, not a server
@@ -310,6 +310,9 @@ function handleConvertStatus(jobId) {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${job.workbookName.replace(/["\r\n]/g, "")}"`,
       "X-Transaction-Count": String(job.transactionCount),
+      // "ok" | "needs_review"; reasons as URI-encoded JSON (headers must stay ASCII).
+      "X-Conversion-Status": job.review?.status || "ok",
+      "X-Review-Reasons": encodeURIComponent(JSON.stringify(job.review?.reasons || [])),
     },
   });
 }
