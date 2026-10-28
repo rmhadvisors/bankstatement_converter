@@ -25,6 +25,7 @@ import {
 import { isStandardCharteredLayout, parseStandardCharteredTransactions } from "./scbParser.js";
 import { isVvsbLayout, parseVvsbTransactions } from "./vvsbParser.js";
 import { isHdfcOcrLayout, parseHdfcOcrStatement } from "./hdfcOcrParser.js";
+import { isHdfcWordBoxLayout, parseHdfcWordBoxStatement } from "./hdfcWordBoxParser.js";
 import { isPassbookLayout, parsePassbookStatement } from "./passbookParser.js";
 import { buildValidationReport, correctDebitCreditByBalance, removeDuplicateTransactions } from "./validation.js";
 import { detectBank } from "./parsers/detector.js";
@@ -1077,8 +1078,16 @@ function parseStatement(extraction) {
   let parsingErrors = [];
   let reviewRows = [];
   let finacleAccountInfo = null;
+  // Word boxes from local extraction: column-aware HDFC parsing with per-month validation. Falls
+  // through to the line-based parsers if it finds nothing.
+  const hdfcWordBox = isHdfcWordBoxLayout(extraction) ? parseHdfcWordBoxStatement(extraction) : null;
 
-  if (isBccbPassbookLayout(lines)) {
+  if (hdfcWordBox?.transactions.length) {
+    detectedFormat = "hdfc-wordbox";
+    transactions = hdfcWordBox.transactions;
+    parserPrintedTotals = hdfcWordBox.printedTotals;
+    logs.push(...hdfcWordBox.logs);
+  } else if (isBccbPassbookLayout(lines)) {
     detectedFormat = "bccb-passbook";
     const passbook = parseBccbPassbookTransactions(lines);
     transactions = passbook.transactions;
@@ -1304,6 +1313,8 @@ function parseStatement(extraction) {
     detectedFormat !== "bccb-ledger" &&
     detectedFormat !== "bccb-passbook" &&
     detectedFormat !== "apna-sahakari" &&
+    // Reversals are negative deposits there; the per-month balance check already validated rows.
+    detectedFormat !== "hdfc-wordbox" &&
     !(detectedFormat === "columnar-ocr" && isAxisOcrLayout(lines))
   ) {
     transactions = correctDebitCreditByBalance(transactions);
@@ -1370,10 +1381,13 @@ function parseStatement(extraction) {
     parsingErrors,
     reviewRows,
     logs,
+    monthlyCheck: hdfcWordBox?.transactions.length ? hdfcWordBox.monthlyCheck : undefined,
   };
 
   statement.reconciliation = buildValidationReport(statement, lines);
   statement.reviewRows = statement.reconciliation.reviewRows || [];
+  // Each month was checked against its own printed summary; one mismatch fails the file.
+  if (statement.monthlyCheck?.some((month) => month.status !== "MATCH")) statement.reconciliation.status = "FAIL";
 
   for (const issue of statement.reconciliation.issues) {
     logs.push({

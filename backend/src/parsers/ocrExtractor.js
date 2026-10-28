@@ -1,5 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
+import crypto from "node:crypto";
+import { execFile } from "node:child_process";
 import { PDFDocument } from "pdf-lib";
 import { correctOcrToken } from "./ocrCorrections.js";
 import { reconstructLinesFromWords } from "./ocrLineReconstructor.js";
@@ -40,38 +43,18 @@ function normalizeText(value) {
 // dates, then all references, then all amounts...), which silently scrambles reading order before
 // any parsing code runs; reconstructing from raw word positions sidesteps that entirely.
 function buildLinesFromParsedResult(parsedResult, pageNumber) {
-  const words = [];
-  for (const line of parsedResult.TextOverlay?.Lines || []) {
-    for (const word of line.Words || []) {
-      const wordLeft = Number(word.Left);
-      const wordTop = Number(word.Top);
-      const wordWidth = Number(word.Width);
-      const wordHeight = Number(word.Height);
-      const x = Number.isFinite(wordWidth) ? wordLeft + wordWidth / 2 : wordLeft;
-      const y = Number.isFinite(wordHeight) ? wordTop + wordHeight / 2 : wordTop;
-      const normalized = normalizeText(word.WordText);
-      const corrected = correctOcrToken(normalized);
-      if (!Number.isFinite(x) || !Number.isFinite(y) || !corrected) continue;
-      words.push({ x, y, text: corrected, corrected: corrected !== normalized });
-    }
-  }
+  const boxes = (parsedResult.TextOverlay?.Lines || []).flatMap((line) =>
+    (line.Words || []).map((word) => ({
+      text: word.WordText,
+      left: Number(word.Left),
+      top: Number(word.Top),
+      width: Number(word.Width),
+      height: Number(word.Height),
+    })),
+  );
+  const lines = buildLinesFromWordBoxes(boxes, pageNumber);
+  if (lines.length > 0) return lines;
 
-  if (words.length > 0) {
-    return reconstructLinesFromWords(words).map((line) => ({
-      pageNumber,
-      // OCR.space returns "01-10-2024" as three words "01 - 10 - 2024" (seen on ICICI scans);
-      // rejoin them so the date regexes in every parser still match.
-      text: line.text.replace(/\b(\d{1,2}) ?([-/.]) ?(\d{1,2}) ?\2 ?(\d{2,4})\b/g, "$1$2$3$2$4"),
-      // Kept for parsers (e.g. bobWorldAppParser.js) that band lines into sections by vertical
-      // position; reconstructLinesFromWords already computed these per reconstructed row.
-      top: line.y,
-      left: line.items[0]?.x ?? null,
-      items: line.items,
-      hadOcrCorrections: line.items.some((item) => item.corrected),
-    }));
-  }
-
-  const lines = [];
   if (parsedResult.ParsedText) {
     for (const rawLine of String(parsedResult.ParsedText).split(/\r?\n/)) {
       const text = normalizeText(rawLine);
@@ -80,6 +63,32 @@ function buildLinesFromParsedResult(parsedResult, pageNumber) {
   }
 
   return lines;
+}
+
+// boxes: [{ text, left, top, width, height }] in image pixels (y down).
+function buildLinesFromWordBoxes(boxes, pageNumber) {
+  const words = [];
+  for (const word of boxes) {
+    const x = Number.isFinite(word.width) ? word.left + word.width / 2 : word.left;
+    const y = Number.isFinite(word.height) ? word.top + word.height / 2 : word.top;
+    const normalized = normalizeText(word.text);
+    const corrected = correctOcrToken(normalized);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !corrected) continue;
+    words.push({ x, y, text: corrected, corrected: corrected !== normalized });
+  }
+
+  return reconstructLinesFromWords(words).map((line) => ({
+    pageNumber,
+    // OCR.space returns "01-10-2024" as three words "01 - 10 - 2024" (seen on ICICI scans);
+    // rejoin them so the date regexes in every parser still match.
+    text: line.text.replace(/\b(\d{1,2}) ?([-/.]) ?(\d{1,2}) ?\2 ?(\d{2,4})\b/g, "$1$2$3$2$4"),
+    // Kept for parsers (e.g. bobWorldAppParser.js) that band lines into sections by vertical
+    // position; reconstructLinesFromWords already computed these per reconstructed row.
+    top: line.y,
+    left: line.items[0]?.x ?? null,
+    items: line.items,
+    hadOcrCorrections: line.items.some((item) => item.corrected),
+  }));
 }
 
 async function requestOcr({ fileBuffer, fileName, mimeType, ext }) {
@@ -361,7 +370,280 @@ function withTimeout(promise, ms, timeoutMessage) {
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
 }
 
-async function extractScannedFile(filePath) {
+// OCR.space plans cap pages/requests per day and file size, so a long statement is OCR'd locally
+// instead (a 231-page merged statement would otherwise be 231 remote calls, each able to fail
+// over to a slow per-page fallback).
+const REMOTE_OCR_MAX_PAGES = 30;
+const NATIVE_PAGE_TIMEOUT_MS = 120000;
+const CHECKPOINT_ROOT = path.join(os.tmpdir(), "statement-savior-ocr");
+// ponytail: checkpoints of a crashed job are only swept by age on the next local OCR run.
+const CHECKPOINT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// A page with at least this much text-layer text is read directly instead of OCR'd. Below it the
+// page is treated as image/vector-only (e.g. a "Digitally signed by DS HDFC Bank Ltd" stamp is the
+// only real text over vector-drawn glyphs).
+const MIN_TEXT_LAYER_CHARS = 100;
+
+let tesseractBinaryPromise;
+function findTesseractBinary() {
+  tesseractBinaryPromise ??= (async () => {
+    const candidates = [
+      process.env.TESSERACT_PATH,
+      "tesseract",
+      process.platform === "win32" ? "C:\\Program Files\\Tesseract-OCR\\tesseract.exe" : null,
+    ].filter(Boolean);
+    for (const bin of candidates) {
+      const ok = await new Promise((resolve) => execFile(bin, ["--version"], { windowsHide: true }, (error) => resolve(!error)));
+      if (ok) return bin;
+    }
+    return null;
+  })();
+  return tesseractBinaryPromise;
+}
+
+// Level-5 (word) rows of Tesseract's TSV output. The CLI prints a header row, tesseract.js does not;
+// filtering on level covers both.
+function parseTesseractTsv(tsv) {
+  const words = [];
+  for (const row of String(tsv || "").split(/\r?\n/)) {
+    const cols = row.split("\t");
+    if (cols[0] !== "5" || cols.length < 12) continue;
+    const text = cols.slice(11).join(" ").trim();
+    if (text) words.push({ text, left: +cols[6], top: +cols[7], width: +cols[8], height: +cols[9] });
+  }
+  return words;
+}
+
+function ocrImageNative(bin, imagePath) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      bin,
+      [imagePath, "stdout", "--psm", "6", "tsv"],
+      {
+        // One thread per process: the pool already runs one process per core.
+        env: { ...process.env, OMP_THREAD_LIMIT: "1" },
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: NATIVE_PAGE_TIMEOUT_MS,
+        windowsHide: true,
+      },
+      (error, stdout) => (error ? reject(error) : resolve(parseTesseractTsv(stdout))),
+    );
+  });
+}
+
+// Fallback when the tesseract binary isn't installed: a fixed pool of reused tesseract.js workers.
+async function createTesseractJsPool(size) {
+  const Tesseract = await import("tesseract.js").then((module) => module.default || module);
+  const cachePath = path.join(os.tmpdir(), "statement-savior-tesseract");
+  await fs.mkdir(cachePath, { recursive: true });
+  const workers = await Promise.all(Array.from({ length: size }, () => Tesseract.createWorker("eng", 1, { cachePath })));
+  await Promise.all(workers.map((worker) => worker.setParameters({ tessedit_pageseg_mode: "6" })));
+  const idle = [...workers];
+  return {
+    async ocr(imagePath) {
+      const worker = idle.pop();
+      try {
+        const { data } = await worker.recognize(await fs.readFile(imagePath), {}, { tsv: true });
+        return parseTesseractTsv(data.tsv);
+      } finally {
+        idle.push(worker);
+      }
+    },
+    terminate: () => Promise.all(workers.map((worker) => worker.terminate())),
+  };
+}
+
+// Renders straight to an 8-bit grayscale PGM: no PNG encode on the main thread (~1 s/page at
+// 300 DPI), a quarter of the RGBA bytes on disk, and Tesseract/Leptonica read PNM natively.
+async function renderPageToPgm(page, canvasApi, viewport, outPath) {
+  const canvas = canvasApi.createCanvas(Math.floor(viewport.width), Math.floor(viewport.height));
+  const context = canvas.getContext("2d");
+  await page.render({ canvasContext: context, viewport }).promise;
+  const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+  const header = Buffer.from(`P5\n${width} ${height}\n255\n`);
+  const gray = Buffer.allocUnsafe(width * height);
+  for (let i = 0, g = 0; g < gray.length; i += 4, g += 1) {
+    gray[g] = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+  }
+  whitenGrayRules(gray, width, height);
+  await fs.writeFile(outPath, Buffer.concat([header, gray]));
+}
+
+// Same idea as removeRuleLines, on the grayscale buffer: table borders touching a cell's first
+// letter otherwise OCR as fused artifacts ("|ACCOUNT" -> "AACCOUNT", "|BABAR" -> "IBBABAR").
+function whitenGrayRules(gray, width, height) {
+  const isDark = (index) => gray[index] < 200;
+  const rule = new Uint8Array(width * height);
+  for (let y = 0; y < height; y += 1) {
+    let start = -1;
+    for (let x = 0; x <= width; x += 1) {
+      if (x < width && isDark(y * width + x)) {
+        if (start < 0) start = x;
+      } else if (start >= 0) {
+        if (x - start >= RULE_MIN_RUN) rule.fill(1, y * width + start, y * width + x);
+        start = -1;
+      }
+    }
+  }
+  for (let x = 0; x < width; x += 1) {
+    let start = -1;
+    for (let y = 0; y <= height; y += 1) {
+      if (y < height && isDark(y * width + x)) {
+        if (start < 0) start = y;
+      } else if (start >= 0) {
+        if (y - start >= RULE_MIN_RUN) for (let k = start; k < y; k += 1) rule[k * width + x] = 1;
+        start = -1;
+      }
+    }
+  }
+  for (let index = 0; index < rule.length; index += 1) if (rule[index]) gray[index] = 255;
+}
+
+// Text-layer items as word boxes in the same pixel space the OCR'd pages use.
+async function readTextLayerWords(page, pdfjs, viewport) {
+  const content = await page.getTextContent();
+  const words = [];
+  for (const item of content.items) {
+    const text = normalizeText(item.str);
+    if (!text) continue;
+    const [, , c, d, e, f] = pdfjs.Util.transform(viewport.transform, item.transform);
+    const height = Math.hypot(c, d);
+    words.push({ text, left: e, top: f - height, width: item.width * viewport.scale, height });
+  }
+  return words;
+}
+
+async function sweepStaleCheckpoints() {
+  const entries = await fs.readdir(CHECKPOINT_ROOT, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    const dir = path.join(CHECKPOINT_ROOT, entry.name);
+    const stat = await fs.stat(dir).catch(() => null);
+    if (stat && Date.now() - stat.mtimeMs > CHECKPOINT_MAX_AGE_MS) await fs.rm(dir, { recursive: true, force: true });
+  }
+}
+
+// Page-by-page local extraction for long PDFs: render one page -> OCR it -> keep only its word
+// boxes -> drop the bitmap. Pages that carry a real text layer are read directly instead. OCR runs
+// in a fixed pool (one slot per core) while the main thread renders the next page. Each finished
+// page is checkpointed under a hash of the file, so a crashed/restarted job resumes; the
+// checkpoints are deleted once extraction finishes or fails.
+async function extractPdfLocally(filePath, { password, onProgress } = {}) {
+  const logs = [];
+  const start = Date.now();
+  const { canvasApi, pdfjs } = await loadCanvasAndPdfjs();
+  const fileBuffer = await fs.readFile(filePath);
+  const key = crypto.createHash("sha256").update(fileBuffer).update(`dpi=${LOCAL_OCR_TARGET_DPI}`).digest("hex").slice(0, 32);
+  const checkpointDir = path.join(CHECKPOINT_ROOT, key);
+  await sweepStaleCheckpoints();
+  await fs.mkdir(checkpointDir, { recursive: true });
+
+  const bin = await findTesseractBinary();
+  const concurrency = Math.max(1, os.availableParallelism());
+  let pool = null;
+  let pdf = null;
+
+  try {
+    pdf = await pdfjs.getDocument({
+      data: new Uint8Array(fileBuffer),
+      password: password || undefined,
+      verbosity: pdfjs.VerbosityLevel.ERRORS,
+    }).promise;
+    const totalPages = pdf.numPages;
+    if (!bin) pool = await createTesseractJsPool(concurrency);
+    const ocr = bin ? (imagePath) => ocrImageNative(bin, imagePath) : (imagePath) => pool.ocr(imagePath);
+    logs.push({
+      level: "info",
+      stage: "ocr",
+      message: `Local OCR (${bin ? "native tesseract" : "tesseract.js"}, ${concurrency} worker(s), ${LOCAL_OCR_TARGET_DPI} DPI) started for ${totalPages} page(s).`,
+    });
+
+    const pages = new Array(totalPages);
+    const skippedPages = [];
+    let finished = 0;
+    const pageDone = () => onProgress?.({ page: (finished += 1), totalPages });
+    const inFlight = new Set();
+    const scale = LOCAL_OCR_TARGET_DPI / PDF_POINTS_PER_INCH;
+
+    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+      const checkpointPath = path.join(checkpointDir, `page-${pageNumber}.json`);
+      const saved = await fs.readFile(checkpointPath, "utf8").then(JSON.parse, () => null);
+      if (saved) {
+        pages[pageNumber - 1] = saved;
+        pageDone();
+        continue;
+      }
+
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale });
+      const textWords = await readTextLayerWords(page, pdfjs, viewport);
+      if (textWords.reduce((sum, word) => sum + word.text.length, 0) >= MIN_TEXT_LAYER_CHARS) {
+        page.cleanup();
+        pages[pageNumber - 1] = { pageNumber, source: "text", words: textWords };
+        await fs.writeFile(checkpointPath, JSON.stringify(pages[pageNumber - 1]));
+        pageDone();
+        continue;
+      }
+
+      while (inFlight.size >= concurrency) await Promise.race(inFlight);
+      const imagePath = path.join(checkpointDir, `page-${pageNumber}.pgm`);
+      const pageStart = Date.now();
+      await renderPageToPgm(page, canvasApi, viewport, imagePath);
+      page.cleanup();
+
+      const task = ocr(imagePath)
+        .catch(() => ocr(imagePath))
+        .then(
+          async (words) => {
+            pages[pageNumber - 1] = { pageNumber, source: "ocr", words, durationMs: Date.now() - pageStart };
+            await fs.writeFile(checkpointPath, JSON.stringify(pages[pageNumber - 1]));
+          },
+          (error) => {
+            const reason = error?.message || String(error);
+            skippedPages.push({ pageNumber, reason });
+            logs.push({ level: "warn", stage: "ocr", message: `Page ${pageNumber} skipped: ${reason}` });
+            pages[pageNumber - 1] = { pageNumber, source: "ocr", words: [] };
+          },
+        )
+        .finally(() => {
+          inFlight.delete(task);
+          pageDone();
+          return fs.rm(imagePath, { force: true });
+        });
+      inFlight.add(task);
+    }
+    await Promise.all(inFlight);
+
+    const resultPages = pages.map((entry) => ({ ...entry, lines: buildLinesFromWordBoxes(entry.words, entry.pageNumber) }));
+    const lines = resultPages.flatMap((entry) => entry.lines);
+    logs.push({
+      level: "info",
+      stage: "ocr",
+      message:
+        `Local extraction finished: ${resultPages.filter((entry) => entry.source === "text").length} text-layer page(s), ` +
+        `${resultPages.filter((entry) => entry.source === "ocr").length} OCR'd page(s)` +
+        (skippedPages.length ? `, skipped: ${skippedPages.map((entry) => entry.pageNumber).join(", ")}` : "") +
+        ".",
+      pagesProcessed: totalPages,
+      durationMs: Date.now() - start,
+    });
+
+    return {
+      pageCount: totalPages,
+      pages: resultPages,
+      lines,
+      text: lines.map((line) => line.text).join("\n"),
+      source: "ocr",
+      ocrDpi: LOCAL_OCR_TARGET_DPI,
+      skippedPages,
+      logs,
+    };
+  } finally {
+    await pool?.terminate().catch(() => {});
+    await pdf?.destroy().catch(() => {});
+    await fs.rm(checkpointDir, { recursive: true, force: true });
+  }
+}
+
+async function extractScannedFile(filePath, password, { onProgress } = {}) {
   const cachePath = filePath + ".ocr.json";
   try {
     const cached = await fs.readFile(cachePath, "utf8");
@@ -395,6 +677,12 @@ async function extractScannedFile(filePath) {
     } catch (e) {
       console.warn("Failed to load PDF to count pages:", e);
     }
+  }
+
+  if (ext === ".pdf" && (pageCount > REMOTE_OCR_MAX_PAGES || !getOcrApiKey())) {
+    const result = await extractPdfLocally(filePath, { password, onProgress });
+    await fs.writeFile(cachePath, JSON.stringify(result), "utf8").catch(() => {});
+    return result;
   }
 
   const shouldSplitPdf = ext === ".pdf" && (pageCount > 3 || fileBuffer.length > LARGE_PDF_SPLIT_THRESHOLD_BYTES);
@@ -541,4 +829,4 @@ async function extractScannedFile(filePath) {
   return result;
 }
 
-export { extractScannedFile, splitPdfPages, requestOcr, buildLinesFromParsedResult };
+export { extractScannedFile, extractPdfLocally, parseTesseractTsv, splitPdfPages, requestOcr, buildLinesFromParsedResult };

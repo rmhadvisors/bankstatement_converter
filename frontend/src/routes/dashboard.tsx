@@ -26,6 +26,7 @@ import {
   Mail,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { Progress } from "@/components/ui/progress";
 import { convertPdfViaApi, ConversionValidationError } from "@/lib/conversion-api";
 import { saveExcelBlob, getExcelBlob, deleteExcelBlob } from "@/lib/db";
 import { ConverterTabs } from "@/components/converter-tabs";
@@ -105,6 +106,11 @@ function Dashboard() {
   const [view, setView] = useState<"home" | "history" | "settings" | "support">("home");
   const [pending, setPending] = useState<File[]>([]);
   const [converting, setConverting] = useState(false);
+  const [progress, setProgress] = useState<{
+    fileName: string;
+    page?: number;
+    totalPages?: number;
+  } | null>(null);
   const [pdfPassword, setPdfPassword] = useState("");
   const [showPdfPassword, setShowPdfPassword] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -215,7 +221,10 @@ function Dashboard() {
       saveHistory(history);
 
       try {
-        const result = await convertPdfViaApi(file, pdfPassword.trim(), mode === "scanned");
+        setProgress({ fileName: file.name });
+        const result = await convertPdfViaApi(file, pdfPassword.trim(), mode === "scanned", (p) =>
+          setProgress({ fileName: file.name, page: p.page, totalPages: p.totalPages }),
+        );
         const rowsCount = result.rowsCount;
 
         // Save actual converted Excel blob to browser's IndexedDB cache
@@ -242,6 +251,7 @@ function Dashboard() {
       }
     }
 
+    setProgress(null);
     setConverting(false);
   }
 
@@ -537,6 +547,19 @@ function Dashboard() {
                     </>
                   )}
                 </button>
+                {progress && (
+                  <div className="mt-3 space-y-1.5" aria-live="polite">
+                    <Progress
+                      value={progress.totalPages ? (100 * (progress.page ?? 0)) / progress.totalPages : 0}
+                      aria-label={`Converting ${progress.fileName}`}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {progress.totalPages
+                        ? `Reading page ${progress.page} of ${progress.totalPages} - ${progress.fileName}`
+                        : `Uploading and preparing ${progress.fileName}...`}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl border bg-card shadow-sm">

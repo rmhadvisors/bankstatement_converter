@@ -124,7 +124,7 @@ async function convertPdfToStatement(filePath, options = {}) {
 
   const extractionStart = Date.now();
   let extraction = options.scanned
-    ? await extractScannedFile(filePath, options.password)
+    ? await extractScannedFile(filePath, options.password, { onProgress: options.onProgress })
     : await extractPdf(filePath, options.password);
   logs.push(...(extraction.logs || []));
   logs.push({
@@ -155,7 +155,7 @@ async function convertPdfToStatement(filePath, options = {}) {
         : "No embedded text was found; retrying with OCR.",
       pagesProcessed: extraction.pageCount || 0,
     });
-    extraction = await extractScannedFile(filePath);
+    extraction = await extractScannedFile(filePath, options.password, { onProgress: options.onProgress });
     logs.push(...(extraction.logs || []));
     logs.push({
       level: "info",
@@ -204,7 +204,7 @@ async function convertPdfToStatement(filePath, options = {}) {
       durationMs: 0,
     });
 
-    extraction = await extractScannedFile(filePath);
+    extraction = await extractScannedFile(filePath, options.password, { onProgress: options.onProgress });
     logs.push(...(extraction.logs || []));
     logs.push({
       level: "info",

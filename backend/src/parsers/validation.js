@@ -262,7 +262,8 @@ function buildValidationReport(statement, lines = []) {
       });
     }
 
-    if ((withdrawal !== null && withdrawal < 0) || (deposit !== null && deposit < 0)) {
+    // A bank-printed reversal ("-35,740.00" in the deposit column) is negative on purpose.
+    if (!row.isReversal && ((withdrawal !== null && withdrawal < 0) || (deposit !== null && deposit < 0))) {
       issues.push({
         severity: "error",
         rowNumber: index + 1,
