@@ -150,7 +150,29 @@ function findSuspiciousReferenceNumbers(transactions) {
     }));
 }
 
+const describeAmounts = (debit, credit) => {
+  const fmt = (value) => Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const parts = [debit !== null ? `debit ${fmt(debit)}` : null, credit !== null ? `credit ${fmt(credit)}` : null].filter(Boolean);
+  return parts.length ? parts.join(" and ") : "no amount";
+};
+
+// Never silent: every row whose amount or side is rewritten from the balance chain gets a
+// `balanceCorrection` note, which reviewStatus() turns into a needs_review reason.
 function correctDebitCreditByBalance(transactions) {
+  // 0.00 and an empty cell are the same amount; dropping a printed 0.00 is not a change.
+  const amount = (value) => (moneyOrNull(value) === 0 ? null : moneyOrNull(value));
+  const before = new Map(transactions.map((row) => [row, [amount(row.withdrawal), amount(row.deposit)]]));
+  rebuildAmountsFromBalance(transactions);
+  for (const row of transactions) {
+    const [oldDebit, oldCredit] = before.get(row);
+    const [newDebit, newCredit] = [amount(row.withdrawal), amount(row.deposit)];
+    if (oldDebit === newDebit && oldCredit === newCredit) continue;
+    row.balanceCorrection = `printed ${describeAmounts(oldDebit, oldCredit)} changed to ${describeAmounts(newDebit, newCredit)} to fit the balance; please verify against the PDF`;
+  }
+  return transactions;
+}
+
+function rebuildAmountsFromBalance(transactions) {
   const rows = isChronological(transactions) ? transactions : [...transactions].reverse();
 
   for (let index = 1; index < rows.length; index += 1) {
@@ -409,6 +431,11 @@ function reviewStatus(statement) {
       }
     }
   }
+  (statement.transactions || []).forEach((row, index) => {
+    if (!row.balanceCorrection) return;
+    const date = row.date instanceof Date ? ` (${row.date.toISOString().slice(0, 10).split("-").reverse().join("-")})` : "";
+    reasons.push(`Row ${index + 1}${date}: ${row.balanceCorrection}.`);
+  });
   // Parser-level checks against the statement's own summary (BCCB, Apna Sahakari, IDBI, ICICI ...).
   for (const log of statement.logs || []) {
     if (log.level === "error" && log.stage === "parse" && !reasons.includes(log.message)) reasons.push(log.message);

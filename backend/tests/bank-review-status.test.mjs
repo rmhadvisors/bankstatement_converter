@@ -10,6 +10,28 @@ import ExcelJS from "exceljs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
 import { convertPdfToStatement } from "../src/parsers/converter.js";
+import { correctDebitCreditByBalance, reviewStatus } from "../src/parsers/validation.js";
+
+test("a balance-chain correction is never silent: it becomes a needs_review reason", () => {
+  const day = (d) => new Date(Date.UTC(2026, 7, d));
+  const transactions = [
+    { date: day(1), particulars: "OPENING", withdrawal: null, deposit: null, balance: 1000 },
+    { date: day(2), particulars: "SHOP", withdrawal: 100, deposit: null, balance: 900 },
+    // Printed as a 50.00 credit, but the balance fell by 50: the step turns it into a debit.
+    { date: day(3), particulars: "REFUND?", withdrawal: null, deposit: 50, balance: 850 },
+    // A printed 0.00 next to the real amount is not a change worth reporting.
+    { date: day(4), particulars: "SALARY", withdrawal: 0, deposit: 200, balance: 1050 },
+  ];
+  correctDebitCreditByBalance(transactions);
+  assert.deepEqual([transactions[2].withdrawal, transactions[2].deposit], [50, null]);
+  assert.equal(transactions[3].balanceCorrection, undefined);
+
+  const review = reviewStatus({ transactions, reconciliation: {}, logs: [] });
+  assert.equal(review.status, "needs_review");
+  assert.deepEqual(review.reasons, [
+    "Row 3 (03-08-2026): printed credit 50.00 changed to debit 50.00 to fit the balance; please verify against the PDF.",
+  ]);
+});
 
 const backendDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pdfPath = join(tmpdir(), `review-status-${randomUUID()}.pdf`);
