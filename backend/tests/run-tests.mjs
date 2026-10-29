@@ -31,6 +31,9 @@ await import("./creditcard/axis.test.mjs");
 await import("./creditcard/server.test.mjs");
 await import("./invoice/validate.test.mjs");
 await import("./invoice/tally.test.mjs");
+await import("./invoice/images.test.mjs");
+await import("./invoice/extract.test.mjs");
+await import("./invoice/live.test.mjs");
 
 await import("./hdfc-merged-apr25-mar26.test.mjs");
 await import("./bank-client-statements.test.mjs");

@@ -10,6 +10,7 @@ import { validateBatch } from "./validate.js";
 import { ENTRY_TYPES, guessEntryType, matchParty } from "./parties.js";
 import { buildTallyWorkbookBuffer } from "./tallyWorkbook.js";
 import { sniffType } from "./images.js";
+import { extractInvoice } from "./extract.js";
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -21,8 +22,9 @@ const sha256 = (buffer) => crypto.createHash("sha256").update(buffer).digest("he
 const json = (body, status = 200) => Response.json(body, { status });
 const invoiceError = (code, message, status = 400) => json({ code, message }, status);
 
-// Set by Stage 3 (AI extraction). Until then, or without an API key, the page runs in demo mode.
-let extractor = null;
+// AI reading (extract.js). Without INVOICE_LLM_API_KEY the page runs in demo mode instead; tests
+// can swap the extractor for a mock.
+let extractor = (upload) => extractInvoice(upload);
 function setInvoiceExtractor(fn) {
   extractor = fn;
 }

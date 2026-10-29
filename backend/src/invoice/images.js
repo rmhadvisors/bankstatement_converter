@@ -1,5 +1,5 @@
 // Turns uploaded invoice files into what the model reads: a text layer (digital PDF) or JPEG page
-// images (photos, HEIC, scanned PDFs). Photos get EXIF rotation + downscaling only -- no
+// images (photos, HEIC, scanned PDFs). Photos get EXIF rotation (applied on load) + downscaling only -- no
 // binarization, which destroys handwriting, and no page cropping (the model ignores background).
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -28,33 +28,6 @@ function sniffType(buffer) {
   return null;
 }
 
-// EXIF Orientation tag (0x0112) from a JPEG's APP1 segment; 1 (upright) when absent.
-function exifOrientation(buffer) {
-  let offset = 2;
-  while (offset + 4 <= buffer.length && buffer[offset] === 0xff) {
-    const marker = buffer[offset + 1];
-    const length = buffer.readUInt16BE(offset + 2);
-    if (marker === 0xe1 && buffer.subarray(offset + 4, offset + 10).toString("latin1") === "Exif\0\0") {
-      const tiff = offset + 10;
-      const little = buffer.subarray(tiff, tiff + 2).toString("latin1") === "II";
-      const u16 = (at) => (little ? buffer.readUInt16LE(at) : buffer.readUInt16BE(at));
-      const u32 = (at) => (little ? buffer.readUInt32LE(at) : buffer.readUInt32BE(at));
-      const ifd = tiff + u32(tiff + 4);
-      for (let i = 0, count = u16(ifd); i < count; i++) {
-        const entry = ifd + 2 + i * 12;
-        if (u16(entry) === 0x0112) return u16(entry + 8);
-      }
-      return 1;
-    }
-    if (marker === 0xda) break; // start of scan: no more metadata
-    offset += 2 + length;
-  }
-  return 1;
-}
-
-// EXIF orientation -> [clockwise degrees, mirrored] (mirror is applied before rotating).
-const ORIENTATION = { 1: [0, false], 2: [0, true], 3: [180, false], 4: [180, true], 5: [270, true], 6: [90, false], 7: [90, true], 8: [270, false] };
-
 async function loadCanvas() {
   const canvasApi = await import("@napi-rs/canvas");
   // pdf.js rendering under Node expects these browser globals (same setup as ocrExtractor).
@@ -65,7 +38,7 @@ async function loadCanvas() {
 }
 
 // Draw `source` (anything drawImage accepts) upright, rotated by `degrees`, long side <= MAX_LONG_SIDE.
-async function toJpeg(canvasApi, source, width, height, degrees = 0, mirrored = false) {
+async function toJpeg(canvasApi, source, width, height, degrees = 0) {
   const scale = Math.min(1, MAX_LONG_SIDE / Math.max(width, height));
   const w = Math.round(width * scale);
   const h = Math.round(height * scale);
@@ -76,7 +49,6 @@ async function toJpeg(canvasApi, source, width, height, degrees = 0, mirrored = 
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.rotate((degrees * Math.PI) / 180);
-  if (mirrored) ctx.scale(-1, 1);
   ctx.drawImage(source, -w / 2, -h / 2, w, h);
   return { mediaType: "image/jpeg", data: await canvas.encode("jpeg", JPEG_QUALITY), width: canvas.width, height: canvas.height };
 }
@@ -91,9 +63,10 @@ async function imageFileToJpeg(buffer, type, rotate) {
     raw.getContext("2d").putImageData(new canvasApi.ImageData(data, width, height), 0, 0);
     return toJpeg(canvasApi, raw, width, height, rotate);
   }
+  // loadImage already applies the JPEG's EXIF orientation (phone photos come out upright), so only
+  // the review screen's rotate button adds rotation here.
   const image = await canvasApi.loadImage(buffer);
-  const [degrees, mirrored] = type === "jpeg" ? ORIENTATION[exifOrientation(buffer)] ?? ORIENTATION[1] : ORIENTATION[1];
-  return toJpeg(canvasApi, image, image.width, image.height, (degrees + rotate) % 360, mirrored);
+  return toJpeg(canvasApi, image, image.width, image.height, rotate % 360);
 }
 
 async function renderPdfPages(buffer, rotate) {
@@ -128,4 +101,4 @@ async function prepareInvoiceFile(filePath, { rotate = 0 } = {}) {
   return { kind: "images", images: await renderPdfPages(buffer, rotate) };
 }
 
-export { exifOrientation, invoiceError, prepareInvoiceFile, sniffType, MAX_LONG_SIDE };
+export { invoiceError, prepareInvoiceFile, sniffType, MAX_LONG_SIDE };
