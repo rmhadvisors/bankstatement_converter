@@ -54,7 +54,7 @@ test("claude provider: request shape, retry on 429, refusal and missing key", as
     return Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: "{}" }] });
   };
   const provider = claudeProvider({ apiKey: "test-key", model: "test-model", fetchImpl });
-  assert.equal(await provider.complete({ system: "s", messages: [{ role: "user", content: "x" }] }), "{}");
+  assert.equal((await provider.complete({ system: "s", messages: [{ role: "user", content: "x" }] })).text, "{}");
   assert.equal(requests.length, 2, "429 retried");
   const { url, init } = requests[1];
   assert.equal(url, "https://api.anthropic.com/v1/messages");

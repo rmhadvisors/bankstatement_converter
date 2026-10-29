@@ -10,7 +10,7 @@ import { validateBatch } from "./validate.js";
 import { ENTRY_TYPES, guessEntryType, matchParty } from "./parties.js";
 import { buildTallyWorkbookBuffer } from "./tallyWorkbook.js";
 import { sniffType } from "./images.js";
-import { extractInvoice } from "./extract.js";
+import { extractInvoice, providerConfigured } from "./extract.js";
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -28,7 +28,7 @@ let extractor = (upload) => extractInvoice(upload);
 function setInvoiceExtractor(fn) {
   extractor = fn;
 }
-const mode = () => (extractor && process.env.INVOICE_LLM_API_KEY ? "live" : "demo");
+const mode = () => (extractor && providerConfigured() ? "live" : "demo");
 
 // Demo mode: the hand-typed JSON for the client's sample invoices, matched by file content hash.
 let demoSamples = null;

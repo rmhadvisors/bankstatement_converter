@@ -6,7 +6,10 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepareInvoiceFile } from "./images.js";
+import { readFile } from "node:fs/promises";
 import { INVOICE_SCHEMA, validateInvoiceJson } from "./schema.js";
+import { sarvamProvider } from "./sarvam.js";
+import { validateInvoice } from "./validate.js";
 
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -83,7 +86,10 @@ function claudeProvider({ apiKey = process.env.INVOICE_LLM_API_KEY, model = proc
         if (!response.ok) throw extractError("INVOICE_LLM_FAILED", `AI service error ${response.status}: ${body?.error?.message ?? response.statusText}`);
         if (body.stop_reason === "refusal") throw extractError("INVOICE_LLM_REFUSED", "The AI service declined to read this file.");
         if (body.stop_reason === "max_tokens") throw extractError("INVOICE_LLM_TRUNCATED", "The AI answer was cut off (invoice too long).");
-        return (body.content ?? []).filter((block) => block.type === "text").map((block) => block.text).join("");
+        return {
+          text: (body.content ?? []).filter((block) => block.type === "text").map((block) => block.text).join(""),
+          usage: { model: body.model ?? model, inputTokens: body.usage?.input_tokens ?? 0, outputTokens: body.usage?.output_tokens ?? 0 },
+        };
       }
     },
   };
@@ -101,6 +107,14 @@ async function queued(task) {
     active--;
     waiting.shift()?.();
   }
+}
+
+// Sarvam: one job at a time (10 requests/minute per key, polls included).
+let sarvamChain = Promise.resolve();
+function queuedSarvam(task) {
+  const run = sarvamChain.then(task, task);
+  sarvamChain = run.catch(() => {});
+  return run;
 }
 
 function parseJsonReply(text) {
@@ -126,7 +140,79 @@ async function contentFor(prepared, fileName) {
 }
 
 // file: { name, buffer } (an upload) or { name, path }. Returns the normalized InvoiceJSON.
-async function extractInvoice(file, { provider = claudeProvider(), rotate = 0 } = {}) {
+async function extractInvoice(file, options = {}) {
+  return (await extractInvoiceDetailed(file, options)).invoice;
+}
+
+// Which reader: INVOICE_PROVIDER = claude | sarvam | sarvam_then_claude; unset -> whichever key is set
+// (Claude if both). Both keys are optional: without one, the converter runs in demo mode.
+function chosenProvider() {
+  const wanted = process.env.INVOICE_PROVIDER;
+  if (["claude", "sarvam", "sarvam_then_claude"].includes(wanted)) return wanted;
+  if (process.env.INVOICE_LLM_API_KEY) return "claude";
+  return process.env.SARVAM_API_KEY ? "sarvam" : "claude";
+}
+
+function providerConfigured(name = chosenProvider()) {
+  if (name === "claude") return Boolean(process.env.INVOICE_LLM_API_KEY);
+  if (name === "sarvam") return Boolean(process.env.SARVAM_API_KEY);
+  return Boolean(process.env.SARVAM_API_KEY && process.env.INVOICE_LLM_API_KEY);
+}
+
+// -> { invoice, meta: { provider, pages?, usage?, fallback?, fallbackReason?, fallbackError? } }
+async function extractInvoiceDetailed(file, { provider, sarvam, providerName = provider ? "claude" : chosenProvider(), rotate = 0 } = {}) {
+  if (providerName === "sarvam") return readWithSarvam(file, { sarvam, rotate });
+  if (providerName === "claude") return readWithClaude(file, { provider, rotate });
+  // sarvam_then_claude: Sarvam first; Claude only when the checks fail or a field is low-confidence.
+  const first = await readWithSarvam(file, { sarvam, rotate }).catch((error) => ({ error }));
+  let why = null;
+  if (first.error) why = "Sarvam failed (" + (first.error.code ?? "error") + ")";
+  else if (validateInvoice(first.invoice).status === "NEEDS REVIEW") why = "checks failed on the Sarvam reading";
+  else if (Object.values(first.invoice.confidence ?? {}).includes("low")) why = "Sarvam marked fields low-confidence";
+  if (!why) return first;
+  try {
+    const second = await readWithClaude(file, { provider, rotate });
+    return { invoice: second.invoice, meta: { ...second.meta, fallback: true, fallbackReason: why, sarvamPages: first.meta?.pages ?? null } };
+  } catch (error) {
+    if (first.error) throw first.error;
+    return { invoice: first.invoice, meta: { ...first.meta, fallbackReason: why, fallbackError: error.code ?? error.message } };
+  }
+}
+
+async function withLocalFile(file, work) {
+  if (file.path) return work(file.path);
+  const path = join(tmpdir(), "invoice-" + randomUUID());
+  await writeFile(path, file.buffer);
+  try {
+    return await work(path);
+  } finally {
+    await rm(path, { force: true });
+  }
+}
+
+async function readWithSarvam(file, { sarvam = sarvamProvider(), rotate = 0 }) {
+  return withLocalFile(file, async (path) => {
+    // PDFs go as they are (Sarvam reads text layers and scans, max 10 pages); photos go as the
+    // prepared JPEG (EXIF/rotate applied, downscaled, HEIC converted: Sarvam takes PDF, JPG, PNG).
+    const buffer = file.buffer ?? (await readFile(path));
+    let upload = { name: file.name, buffer, mediaType: "application/pdf" };
+    if (buffer.subarray(0, 5).toString("latin1") !== "%PDF-" || rotate) {
+      const prepared = await prepareInvoiceFile(path, { rotate });
+      if (prepared.kind !== "images") throw extractError("INVOICE_UNSUPPORTED_FILE", "Unsupported file for Sarvam.");
+      if (prepared.images.length > 1) throw extractError("SARVAM_MULTIPAGE", "Rotated multi-page PDFs are not supported with Sarvam yet.");
+      upload = { name: file.name.replace(/\.[^.]+$/, "") + ".jpg", buffer: Buffer.from(prepared.images[0].data), mediaType: "image/jpeg" };
+    }
+    const read = await queuedSarvam(() => sarvam.extract(upload));
+    const checked = validateInvoiceJson(read.invoice);
+    if (!checked.ok) throw extractError("INVOICE_SARVAM_BAD_JSON", "Sarvam's result did not match the invoice format (" + checked.errors.slice(0, 3).join("; ") + ").");
+    // Sarvam scores empty fields too; only a value that was actually read can be doubtful.
+    const value = (path) => path.split(/[.[\]]+/).filter(Boolean).reduce((o, k) => (o == null ? undefined : o[k]), checked.invoice);
+    checked.invoice.confidence = Object.fromEntries(Object.entries(checked.invoice.confidence).filter(([path]) => value(path) != null && value(path) !== ""));
+    return { invoice: checked.invoice, meta: { provider: "sarvam", pages: read.pages, partial: read.partial } };
+  });
+}
+
+async function readWithClaude(file, { provider = claudeProvider(), rotate = 0 }) {
   let path = file.path;
   let cleanup = null;
   if (!path) {
@@ -137,13 +223,21 @@ async function extractInvoice(file, { provider = claudeProvider(), rotate = 0 } 
   try {
     const prepared = await prepareInvoiceFile(path, { rotate });
     const messages = [{ role: "user", content: await contentFor(prepared, file.name) }];
+    const usage = { model: null, inputTokens: 0, outputTokens: 0, calls: 0 };
     return await queued(async () => {
       // One retry when the reply isn't schema-valid JSON, telling the model what was wrong.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const reply = await provider.complete({ system: SYSTEM_PROMPT, messages });
+        const answer = await provider.complete({ system: SYSTEM_PROMPT, messages });
+        const reply = typeof answer === "string" ? answer : answer.text;
+        if (answer?.usage) {
+          usage.model = answer.usage.model;
+          usage.inputTokens += answer.usage.inputTokens;
+          usage.outputTokens += answer.usage.outputTokens;
+        }
+        usage.calls++;
         const parsed = parseJsonReply(reply);
         const checked = parsed.error ? { ok: false, errors: [parsed.error] } : validateInvoiceJson(parsed.value);
-        if (checked.ok) return checked.invoice;
+        if (checked.ok) return { invoice: checked.invoice, meta: { provider: "claude", usage } };
         if (attempt === 1) throw extractError("INVOICE_LLM_BAD_JSON", `The AI reply did not match the invoice format twice (${checked.errors.slice(0, 3).join("; ")}).`);
         messages.push({ role: "assistant", content: reply });
         messages.push({ role: "user", content: `That JSON is not valid for the required shape: ${checked.errors.slice(0, 10).join("; ")}. Return the complete corrected JSON object only.` });
@@ -154,4 +248,4 @@ async function extractInvoice(file, { provider = claudeProvider(), rotate = 0 } 
   }
 }
 
-export { claudeProvider, extractInvoice, SYSTEM_PROMPT };
+export { chosenProvider, claudeProvider, extractInvoice, extractInvoiceDetailed, providerConfigured, SYSTEM_PROMPT };
