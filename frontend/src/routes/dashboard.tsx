@@ -24,8 +24,10 @@ import {
   Shield,
   HelpCircle,
   Mail,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { Progress } from "@/components/ui/progress";
 import { convertPdfViaApi, ConversionValidationError } from "@/lib/conversion-api";
 import { saveExcelBlob, getExcelBlob, deleteExcelBlob } from "@/lib/db";
 import { ConverterTabs } from "@/components/converter-tabs";
@@ -52,6 +54,8 @@ type Conversion = {
   statement_type?: "bank" | "credit_card";
   status: "queued" | "converting" | "converted" | "failed";
   rows_count: number;
+  // Set when the file converted but doesn't reconcile: shown as "Needs review", never as a plain success.
+  review_reasons?: string[];
   created_at: string;
 };
 
@@ -63,7 +67,15 @@ function fmtSize(b: number) {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function statusPill(s: Conversion["status"]) {
+function statusPill(s: Conversion["status"], needsReview = false) {
+  if (s === "converted" && needsReview) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-100 dark:bg-amber-950/40">
+        <AlertTriangle className="h-3.5 w-3.5" />
+        Needs review
+      </span>
+    );
+  }
   const map = {
     converted: {
       c: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40",
@@ -105,6 +117,11 @@ function Dashboard() {
   const [view, setView] = useState<"home" | "history" | "settings" | "support">("home");
   const [pending, setPending] = useState<File[]>([]);
   const [converting, setConverting] = useState(false);
+  const [progress, setProgress] = useState<{
+    fileName: string;
+    page?: number;
+    totalPages?: number;
+  } | null>(null);
   const [pdfPassword, setPdfPassword] = useState("");
   const [showPdfPassword, setShowPdfPassword] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -215,16 +232,29 @@ function Dashboard() {
       saveHistory(history);
 
       try {
-        const result = await convertPdfViaApi(file, pdfPassword.trim(), mode === "scanned");
+        setProgress({ fileName: file.name });
+        const result = await convertPdfViaApi(file, pdfPassword.trim(), mode === "scanned", (p) =>
+          setProgress({ fileName: file.name, page: p.page, totalPages: p.totalPages }),
+        );
         const rowsCount = result.rowsCount;
 
         // Save actual converted Excel blob to browser's IndexedDB cache
         await saveExcelBlob(base.id, result.blob);
 
-        const finished = { ...base, status: "converted" as const, rows_count: rowsCount };
+        const needsReview = result.reviewStatus === "needs_review";
+        const finished = {
+          ...base,
+          status: "converted" as const,
+          rows_count: rowsCount,
+          ...(needsReview ? { review_reasons: result.reviewReasons } : {}),
+        };
         history = [finished, ...history.filter((i) => i.id !== base.id)];
         saveHistory(history);
-        toast.success(`${file.name} converted${rowsCount ? ` - ${rowsCount} rows` : ""}`);
+        if (needsReview) {
+          toast.warning(`${file.name} needs review: it doesn't reconcile. ${result.reviewReasons[0] ?? ""}`, { duration: 15000 });
+        } else {
+          toast.success(`${file.name} converted${rowsCount ? ` - ${rowsCount} rows` : ""}`);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : "unknown error";
         const failed = { ...base, status: "failed" as const };
@@ -242,6 +272,7 @@ function Dashboard() {
       }
     }
 
+    setProgress(null);
     setConverting(false);
   }
 
@@ -537,6 +568,19 @@ function Dashboard() {
                     </>
                   )}
                 </button>
+                {progress && (
+                  <div className="mt-3 space-y-1.5" aria-live="polite">
+                    <Progress
+                      value={progress.totalPages ? (100 * (progress.page ?? 0)) / progress.totalPages : 0}
+                      aria-label={`Converting ${progress.fileName}`}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {progress.totalPages
+                        ? `Reading page ${progress.page} of ${progress.totalPages} - ${progress.fileName}`
+                        : `Uploading and preparing ${progress.fileName}...`}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl border bg-card shadow-sm">
@@ -562,8 +606,15 @@ function Dashboard() {
                           {c.statement_type === "credit_card" ? "Credit card" : c.type === "pdf" ? "PDF" : "Scanned"} -{" "}
                           {new Date(c.created_at).toLocaleString()}
                         </div>
+                        {c.review_reasons?.length ? (
+                          <ul className="mt-1 list-disc pl-4 text-xs text-amber-700 dark:text-amber-400" role="alert">
+                            {c.review_reasons.map((reason) => (
+                              <li key={reason}>{reason}</li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </div>
-                      {statusPill(c.status)}
+                      {statusPill(c.status, Boolean(c.review_reasons?.length))}
                       <button
                         onClick={() => downloadConversion(c)}
                         disabled={c.status !== "converted"}

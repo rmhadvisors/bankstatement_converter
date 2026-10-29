@@ -32,7 +32,8 @@ test("BCCB passbook photos: 314 rows, opening 3017.58, closing 18060.12, every r
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
-  assert.equal(workbook.getWorksheet("Statement of Account").rowCount, 1 + 314 + 1);
+  // header + Opening Balance + 314 rows + GRAND TOTAL
+  assert.equal(workbook.getWorksheet("Statement of Account").rowCount, 1 + 1 + 314 + 1);
 });
 
 test("passbook amount tokens parse robustly", () => {

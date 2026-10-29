@@ -33,3 +33,9 @@ tmp/
 /private
 /private.b64
 /private.pub
+
+# Client bank statements used as local fixtures; never commit.
+backend/tests/fixtures/bank/
+
+# Invoice fixtures contain real client names/GSTINs; tests skip when absent.
+backend/tests/fixtures/invoices/

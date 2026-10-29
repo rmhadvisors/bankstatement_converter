@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ExcelJS from "exceljs";
 
-import { convertCreditCardToExcelBuffer } from "../../src/creditcard/ccConverter.js";
+import { buildCardStatement, convertCreditCardToExcelBuffer } from "../../src/creditcard/ccConverter.js";
 import { buildCreditCardWorkbookBuffer } from "../../src/creditcard/ccExcelWriter.js";
 import { reconcile, removeDuplicateRows } from "../../src/creditcard/ccValidation.js";
 import { parseHdfcCard } from "../../src/creditcard/issuers/hdfcCard.js";
@@ -194,5 +194,34 @@ test("credit card converter: a bank statement is refused, and the bank converter
       convertPdfToStatement(filePath),
       (error) => error.code === "CREDIT_CARD_STATEMENT",
     ),
+  );
+});
+
+test("ccConverter: ICICI yearly transaction export (no dues, Intl. amount column, alphanumeric refs)", () => {
+  const lines = [
+    "Customer Name Card Account No",
+    "Mr Ravi Kumar 4315 XXXX XXXX 1234",
+    "Statement Period",
+    "01/04/2025 TO 31/03/2026",
+    "TRANSACTION DETAILS",
+    "Card Number : 4315 XXXX XXXX 1234",
+    "International",
+    "Date Ref. Number Transaction Details Currency Amount( in ` )",
+    "amount",
+    "23-MAY-25 74332745144514350034139 AMAZON INDIA CYBS SI MUMBAI IN 0.00 399.00",
+    "12-JUN-25 DP115163112701ebYzOf BBPS Payment received 0.00 -697.00",
+    "26-MAR-26 74332746086608559132567 MICROSOFT DISI MUMBAI IN 0.00 2,724.00",
+    "Sincerely,",
+    "Team ICICI Bank",
+  ].map((text) => ({ text, pageNumber: 1 }));
+  const { summary, transactions } = buildCardStatement(lines);
+  assert.equal(summary.cardHolder, "Mr Ravi Kumar");
+  assert.deepEqual(
+    transactions.map((t) => [t.refNo, t.description, t.type, t.amount]),
+    [
+      ["74332745144514350034139", "AMAZON INDIA CYBS SI MUMBAI IN", "debit", 399],
+      ["DP115163112701ebYzOf", "BBPS Payment received", "credit", 697],
+      ["74332746086608559132567", "MICROSOFT DISI MUMBAI IN", "debit", 2724],
+    ],
   );
 });

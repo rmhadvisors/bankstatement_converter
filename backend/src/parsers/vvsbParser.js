@@ -76,7 +76,9 @@ function isInlineHeaderLine(text) {
 }
 
 function isVvsbLayout(lines) {
-  const text = lines.map((line) => clean(line.text || line)).join("\n");
+  // Letterhead only: another bank's statement can quote "VASAI VIKAS SAHAKARI BANK" in a
+  // counterparty's narration (seen in a 231-page HDFC statement).
+  const text = lines.slice(0, 40).map((line) => clean(line.text || line)).join("\n");
   return /VASAI\s+VIKAS\s+SAHAKARI\s+BANK/i.test(text) && /STATEMENT OF ACCOUNT/i.test(text);
 }
 

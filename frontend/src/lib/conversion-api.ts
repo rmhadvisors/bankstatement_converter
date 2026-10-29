@@ -85,12 +85,21 @@ async function throwConversionError(response: Response): Promise<never> {
 }
 
 const POLL_INTERVAL_MS = 3000;
+// A long OCR job is polled for as long as it runs; only this many consecutive failed polls
+// (network blip, backend restart) give up.
+const MAX_POLL_FAILURES = 10;
+
+export type ConversionProgress = { status: string; page?: number; totalPages?: number };
 
 // Conversion (OCR especially, on a large scanned PDF) can take minutes -- far longer than any
 // reverse proxy will hold a single request open. The backend runs it as a background job: this
 // submits the file, then polls for the result instead of waiting on one long request (which was
 // coming back as a bare 502 once the proxy gave up).
-async function submitAndPoll(route: string, form: FormData): Promise<Response> {
+async function submitAndPoll(
+  route: string,
+  form: FormData,
+  onProgress?: (progress: ConversionProgress) => void,
+): Promise<Response> {
   const submitResponse = await fetch(`${API_BASE_URL}${route}`, {
     method: "POST",
     body: form,
@@ -103,9 +112,19 @@ async function submitAndPoll(route: string, form: FormData): Promise<Response> {
   const { jobId } = (await submitResponse.json()) as { jobId: string };
 
   let response: Response;
+  let failures = 0;
   for (;;) {
-    response = await fetch(`${API_BASE_URL}${route}/${jobId}`);
+    try {
+      response = await fetch(`${API_BASE_URL}${route}/${jobId}`);
+      failures = 0;
+    } catch (error) {
+      if ((failures += 1) >= MAX_POLL_FAILURES) throw error;
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      continue;
+    }
     if (response.status !== 202) break;
+    const progress = (await response.json().catch(() => null)) as ConversionProgress | null;
+    if (progress) onProgress?.(progress);
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 
@@ -119,13 +138,14 @@ export async function convertPdfViaApi(
   file: File,
   password = "",
   scanned = false,
-): Promise<ApiConvertResult> {
+  onProgress?: (progress: ConversionProgress) => void,
+): Promise<BankConvertResult> {
   const form = new FormData();
   form.append("statement", file, file.name);
   form.append("scanned", String(scanned));
   form.append("password", password);
 
-  const response = await submitAndPoll("/api/convert", form);
+  const response = await submitAndPoll("/api/convert", form, onProgress);
   const blob = await response.blob();
   if (blob.size === 0) {
     throw new Error("Conversion returned an empty Excel file");
@@ -138,7 +158,25 @@ export async function convertPdfViaApi(
     rowsCount: Number(response.headers.get("x-transaction-count") || 0),
     fileName,
     blob,
+    ...readReviewHeaders(response),
   };
+}
+
+// "needs_review": the file converted but doesn't reconcile (balance chain or printed totals).
+export type BankConvertResult = ApiConvertResult & {
+  reviewStatus: "ok" | "needs_review";
+  reviewReasons: string[];
+};
+
+function readReviewHeaders(response: Response): Pick<BankConvertResult, "reviewStatus" | "reviewReasons"> {
+  let reviewReasons: string[] = [];
+  try {
+    reviewReasons = JSON.parse(decodeURIComponent(response.headers.get("x-review-reasons") || "%5B%5D"));
+  } catch {
+    reviewReasons = [];
+  }
+  const reviewStatus = response.headers.get("x-conversion-status") === "needs_review" ? "needs_review" : "ok";
+  return { reviewStatus, reviewReasons };
 }
 
 export type ReconciliationStatus = "OK" | "MISMATCH" | "UNVERIFIED";

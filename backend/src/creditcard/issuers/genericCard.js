@@ -40,7 +40,7 @@ const REF_RE = /\b(?:Ref(?:erence)?\.?\s*(?:No\.?|#|Number)?|ARN)\s*[:#]?\s*([A-
 // Headings that end the transaction table. Only checked on lines that don't start with a date, so
 // a transaction like "BONUS REWARD POINTS 500.00" is still a transaction.
 const IGNORE_SECTION_RE =
-  /reward\s*points?\b|points?\s+summary|EMI\s*(?:schedule|offers?|plans?\s+available)|eligible\s+for\s+EMI|important\s+(?:messages?|information|notes?)|terms\s*(?:and|&)\s*conditions|schedule\s+of\s+charges|offers?\s+for\s+you|know\s+your\s+card|payment\s+remittance|remittance\s+coupon|payment\s+modes|your\s+card\s+information/i;
+  /reward\s*points?\b|points?\s+summary|EMI\s*(?:schedule|offers?|plans?\s+available)|eligible\s+for\s+EMI|important\s+(?:messages?|information|notes?)|terms\s*(?:and|&)\s*conditions|schedule\s+of\s+charges|offers?\s+for\s+you|know\s+your\s+card|payment\s+remittance|remittance\s+coupon|payment\s+modes|your\s+card\s+information|^(?:yours\s+)?sincerely\b/i;
 const EMI_SECTION_RE =
   /EMI\s*\/?\s*(?:installment|instalment)?\s*summary|(?:installment|instalment)\s+summary/i;
 const RESUME_SECTION_RE =
@@ -65,6 +65,11 @@ const NOT_PRODUCT_RE = /\b(?:bank|statement|your|the|this|on|of)\b/i;
 const NAME_LINE_RE = /^[A-Z][A-Z.']+(?: [A-Z][A-Z.']+){1,3}$/;
 const NOT_A_NAME_RE =
   /\b(?:BANK|CARD|STATEMENT|SUMMARY|ACCOUNT|DETAILS|TRANSACTIONS?|LIMIT|DUE|BALANCE|PAYMENTS?|REWARDS?|POINTS|CREDIT|DEBIT|TOTAL|NOW|PAGE|MONTHLY|DATE|AMOUNT|FIRST|INFORMATION)\b/;
+// "Customer Name    Card Account No": a header row of labels, not a label and its name.
+const holderLineName = (text) => {
+  const match = text.match(HOLDER_LINE_RE);
+  return match && !new RegExp(NOT_A_NAME_RE.source, "i").test(match[1]) ? match : null;
+};
 
 // Summary tables whose labels sit in columns (and may wrap over several lines) with the values on
 // the line below: the label is matched whole, and each value goes to the column above it by x.
@@ -373,7 +378,7 @@ function extractSummary(lines) {
 
   const holder =
     texts
-      .map((text) => text.match(HOLDER_LINE_RE) || text.match(HONORIFIC_LINE_RE))
+      .map((text) => holderLineName(text) || text.match(HONORIFIC_LINE_RE))
       .find(Boolean) || allText.match(HOLDER_INLINE_RE);
   // Then the name printed beside the card number ("MAHI SHARMA Card No: XXXX-...-4821"), then a
   // bare name line near the top of page 1.
@@ -448,8 +453,16 @@ function parseTransactionLine(text, options = {}, layout = {}, allowEmpty = fals
       rewardPoints = tokens.pop() === "-" ? -rewardPoints : rewardPoints;
   }
 
+  // ICICI's "Intl. amount" column with no currency code: "... MUMBAI IN 0.00 399.00".
+  if (layout.currency && !foreign && /^-?[\d,]+\.\d{2}$/.test(tokens.at(-1) || "") && tokens.length > 1) {
+    const amount = Number(tokens.pop().replace(/,/g, ""));
+    if (amount !== 0) foreign = { foreignAmount: amount };
+  }
+
+  // Under a "Ref. Number" column, refs can be alphanumeric ("DP115163112701ebYzOf").
+  const refToken = layout.ref ? /^(?=(?:\D*\d){8})[A-Za-z0-9]{10,}$/ : /^\d{8,}$/;
   let refNo = null;
-  if (/^\d{8,}$/.test(tokens[0] || "") && tokens.length > 1) refNo = tokens.shift();
+  if (refToken.test(tokens[0] || "") && tokens.length > 1) refNo = tokens.shift();
 
   const description = tokens.join(" ");
   const usable = /[A-Za-z]/.test(description) || (allowEmpty && description === "");
@@ -560,6 +573,8 @@ function parseCardStatement(allLines, options = {}) {
           balance: /\bbalance\b/i.test(text),
           type: /\btype\b|\bdr\s*\/\s*cr\b/i.test(text),
           emi: /\bemi\s+eligib/i.test(text),
+          currency: /\bcurrency\b/i.test(text),
+          ref: /\bref(?:erence)?\.?\s*(?:no|number)\b/i.test(text),
           category: categoryColumn(line),
         };
       }
@@ -633,7 +648,7 @@ function parseCardStatement(allLines, options = {}) {
       continue;
     }
 
-    const holderLine = text.match(HOLDER_LINE_RE);
+    const holderLine = holderLineName(text);
     if (holderLine) {
       card = { ...card, holder: clean(holderLine[1]) };
       last = null;

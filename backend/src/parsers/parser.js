@@ -25,10 +25,14 @@ import {
 import { isStandardCharteredLayout, parseStandardCharteredTransactions } from "./scbParser.js";
 import { isVvsbLayout, parseVvsbTransactions } from "./vvsbParser.js";
 import { isHdfcOcrLayout, parseHdfcOcrStatement } from "./hdfcOcrParser.js";
+import { isHdfcWordBoxLayout, parseHdfcWordBoxStatement } from "./hdfcWordBoxParser.js";
 import { isPassbookLayout, parsePassbookStatement } from "./passbookParser.js";
 import { buildValidationReport, correctDebitCreditByBalance, removeDuplicateTransactions } from "./validation.js";
 import { detectBank } from "./parsers/detector.js";
 import { isAxisLayout, parseAxisTransactions } from "./parsers/axisParser.js";
+import { isAxisReportLayout, parseAxisReportTransactions } from "./parsers/axisReportParser.js";
+import { isIdfcFirstLayout, parseIdfcFirstTransactions } from "./parsers/idfcFirstParser.js";
+import { isIdbiRep31OcrLayout, parseIdbiRep31OcrTransactions } from "./parsers/idbiRep31OcrParser.js";
 import { isBankOfIndiaLayout, parseBankOfIndiaTransactions } from "./parsers/bankOfIndiaParser.js";
 import { isCanaraLayout, parseCanaraTransactions } from "./parsers/canaraParser.js";
 import { isFederalLayout, parseFederalTransactions } from "./parsers/federalParser.js";
@@ -1077,8 +1081,33 @@ function parseStatement(extraction) {
   let parsingErrors = [];
   let reviewRows = [];
   let finacleAccountInfo = null;
+  // Word boxes from local extraction: column-aware HDFC parsing with per-month validation. Falls
+  // through to the line-based parsers if it finds nothing.
+  const hdfcWordBox = isHdfcWordBoxLayout(extraction) ? parseHdfcWordBoxStatement(extraction) : null;
 
-  if (isBccbPassbookLayout(lines)) {
+  if (hdfcWordBox?.transactions.length) {
+    detectedFormat = "hdfc-wordbox";
+    transactions = hdfcWordBox.transactions;
+    parserPrintedTotals = hdfcWordBox.printedTotals;
+    logs.push(...hdfcWordBox.logs);
+  } else if (isAxisReportLayout(lines)) {
+    detectedFormat = "axis-report";
+    const axisReport = parseAxisReportTransactions(lines);
+    transactions = axisReport.transactions;
+    parserPrintedTotals = axisReport.printedTotals;
+  } else if (isIdbiRep31OcrLayout(extraction)) {
+    detectedFormat = "idbi-rep31-ocr";
+    const rep31 = parseIdbiRep31OcrTransactions(extraction);
+    transactions = rep31.transactions;
+    parserPrintedTotals = rep31.printedTotals;
+    for (const note of rep31.notes) logs.push({ level: "warn", stage: "parse", message: note });
+    for (const issue of rep31.reconciliationIssues) logs.push({ level: "error", stage: "parse", message: issue });
+  } else if (extraction.source === "pdf" && isIdfcFirstLayout(lines)) {
+    detectedFormat = "idfc-first";
+    const idfc = parseIdfcFirstTransactions(lines);
+    transactions = idfc.transactions;
+    parserPrintedTotals = idfc.printedTotals;
+  } else if (isBccbPassbookLayout(lines)) {
     detectedFormat = "bccb-passbook";
     const passbook = parseBccbPassbookTransactions(lines);
     transactions = passbook.transactions;
@@ -1280,7 +1309,8 @@ function parseStatement(extraction) {
     const vvsb = parseVvsbTransactions(lines);
     transactions = vvsb.transactions;
     parserPrintedTotals = vvsb.printedTotals;
-  } else if (isHdfcOcrLayout(lines)) {
+  } else if (extraction.source !== "pdf" && isHdfcOcrLayout(lines)) {
+    // OCR'd text only: a native text layer that mentions HDFC in narrations is another bank's statement.
     detectedFormat = "hdfc-ocr";
     const hdfc = parseHdfcOcrStatement(lines);
     transactions = hdfc.transactions;
@@ -1304,6 +1334,12 @@ function parseStatement(extraction) {
     detectedFormat !== "bccb-ledger" &&
     detectedFormat !== "bccb-passbook" &&
     detectedFormat !== "apna-sahakari" &&
+    // Reversals are negative deposits there; the per-month balance check already validated rows.
+    detectedFormat !== "hdfc-wordbox" &&
+    // Amount and DR/CR side are printed explicitly; rewriting them from the balance chain would
+    // hide a statement that doesn't reconcile.
+    detectedFormat !== "axis-report" &&
+    detectedFormat !== "idfc-first" &&
     !(detectedFormat === "columnar-ocr" && isAxisOcrLayout(lines))
   ) {
     transactions = correctDebitCreditByBalance(transactions);
@@ -1316,7 +1352,9 @@ function parseStatement(extraction) {
   });
 
   const beforeDedupe = transactions.length;
-  transactions = removeDuplicateTransactions(transactions, logs);
+  // Axis report rows carry their own S.NO, so identical rows are real (ATM withdrawal, reversal,
+  // same withdrawal again lands on the same balance) and must not be dropped.
+  if (detectedFormat !== "axis-report") transactions = removeDuplicateTransactions(transactions, logs);
   if (transactions.length !== beforeDedupe) {
     logs.push({
       level: "warn",
@@ -1370,10 +1408,13 @@ function parseStatement(extraction) {
     parsingErrors,
     reviewRows,
     logs,
+    monthlyCheck: hdfcWordBox?.transactions.length ? hdfcWordBox.monthlyCheck : undefined,
   };
 
   statement.reconciliation = buildValidationReport(statement, lines);
   statement.reviewRows = statement.reconciliation.reviewRows || [];
+  // Each month was checked against its own printed summary; one mismatch fails the file.
+  if (statement.monthlyCheck?.some((month) => month.status !== "MATCH")) statement.reconciliation.status = "FAIL";
 
   for (const issue of statement.reconciliation.issues) {
     logs.push({

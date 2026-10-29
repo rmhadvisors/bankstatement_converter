@@ -9,9 +9,9 @@ import {
 } from "./excelWriter.js";
 import { parseStatement } from "./parser.js";
 import { extractPdf } from "./pdfExtractor.js";
-import { extractScannedFile } from "./ocrExtractor.js";
+import { extractPdfLocally, extractScannedFile } from "./ocrExtractor.js";
 import { runPdfContentPreflight } from "./pdfPreflight.js";
-import { buildValidationReport } from "./validation.js";
+import { buildValidationReport, reviewStatus } from "./validation.js";
 import { roundMoney } from "./parsers/common.js";
 import { isBccbJune2026Statement, buildBccbJune2026Accounts } from "./verifiedStatements/bccbJune2026.js";
 import { isCreditCardStatement } from "../creditcard/ccDetector.js";
@@ -111,9 +111,44 @@ async function tryLoadFromExcelOverride() {
   return null;
 }
 
+// A real text layer: most pages carry more than 200 non-space characters. Such a PDF is never sent
+// to OCR -- if no parser understands it, that's an unsupported layout, not a scan.
+const GOOD_TEXT_CHARS_PER_PAGE = 200;
+function hasGoodTextLayer(extraction) {
+  if (extraction?.source !== "pdf" || !extraction.pageCount) return false;
+  const chars = new Map();
+  for (const line of extraction.lines || []) {
+    chars.set(line.pageNumber, (chars.get(line.pageNumber) || 0) + String(line.text || "").replace(/\s+/g, "").length);
+  }
+  const goodPages = [...chars.values()].filter((count) => count > GOOD_TEXT_CHARS_PER_PAGE).length;
+  return goodPages >= extraction.pageCount / 2;
+}
+
+function unsupportedLayoutError() {
+  const error = new Error(
+    "This PDF has a readable text layer, but its statement layout isn't supported yet, so no transaction rows could be read. It was not sent to OCR.",
+  );
+  error.code = "UNSUPPORTED_LAYOUT";
+  return error;
+}
+
+// Scanned IDBI REP31 ledgers need word positions (a tilted scan mixes neighbouring rows), which
+// OCR.space's line text doesn't carry; re-read those with local Tesseract. Every other scanned
+// format stays on OCR.space: local Tesseract text breaks their parsers (BCCB passbook, BOB, SBI).
+async function withRep31WordBoxes(extraction, filePath, options, logs) {
+  const text = extraction.text || (extraction.lines || []).map((line) => line.text).join("\n");
+  const hasWords = extraction.pages?.some((page) => page.words?.length);
+  if (extraction.source !== "ocr" || hasWords || !/\bREP31\b/.test(text) || !/Customer Account Ledger/i.test(text)) return extraction;
+  const local = await extractPdfLocally(filePath, { password: options.password, onProgress: options.onProgress });
+  logs.push(...(local.logs || []));
+  logs.push({ level: "info", stage: "ocr", message: "Scanned IDBI REP31 ledger: re-read with local Tesseract for word positions." });
+  return local;
+}
+
 async function convertPdfToStatement(filePath, options = {}) {
   const logs = [];
   const totalStart = Date.now();
+  const isPdf = path.extname(filePath).toLowerCase() === ".pdf";
 
   // Runs before any OCR/table-extraction work, on the raw file, regardless of options.scanned: a
   // PDF with (effectively) nothing extractable on almost every page must fail in a few seconds
@@ -123,9 +158,16 @@ async function convertPdfToStatement(filePath, options = {}) {
   await runPdfContentPreflight(filePath, options.password, logs);
 
   const extractionStart = Date.now();
-  let extraction = options.scanned
-    ? await extractScannedFile(filePath, options.password)
-    : await extractPdf(filePath, options.password);
+  // Scanned mode still uses a good text layer when the PDF has one: OCR would only lose accuracy.
+  const textLayer = options.scanned && isPdf ? await extractPdf(filePath, options.password).catch(() => null) : null;
+  if (textLayer && hasGoodTextLayer(textLayer)) {
+    logs.push({ level: "info", stage: "pdf", message: "Scanned mode was selected, but this PDF has a readable text layer; using it instead of OCR." });
+  }
+  let extraction = textLayer && hasGoodTextLayer(textLayer)
+    ? textLayer
+    : options.scanned
+      ? await extractScannedFile(filePath, options.password, { onProgress: options.onProgress })
+      : await extractPdf(filePath, options.password);
   logs.push(...(extraction.logs || []));
   logs.push({
     level: "info",
@@ -155,7 +197,7 @@ async function convertPdfToStatement(filePath, options = {}) {
         : "No embedded text was found; retrying with OCR.",
       pagesProcessed: extraction.pageCount || 0,
     });
-    extraction = await extractScannedFile(filePath);
+    extraction = await extractScannedFile(filePath, options.password, { onProgress: options.onProgress });
     logs.push(...(extraction.logs || []));
     logs.push({
       level: "info",
@@ -192,8 +234,11 @@ async function convertPdfToStatement(filePath, options = {}) {
     throw error;
   }
 
+  extraction = await withRep31WordBoxes(extraction, filePath, options, logs);
   const parseStart = Date.now();
   let statement = parseStatement(extraction);
+
+  if (statement.transactions.length === 0 && hasGoodTextLayer(extraction)) throw unsupportedLayoutError();
 
   if (statement.transactions.length === 0 && !options.scanned) {
     const ocrStart = Date.now();
@@ -204,7 +249,7 @@ async function convertPdfToStatement(filePath, options = {}) {
       durationMs: 0,
     });
 
-    extraction = await extractScannedFile(filePath);
+    extraction = await extractScannedFile(filePath, options.password, { onProgress: options.onProgress });
     logs.push(...(extraction.logs || []));
     logs.push({
       level: "info",
@@ -214,6 +259,7 @@ async function convertPdfToStatement(filePath, options = {}) {
       durationMs: Date.now() - ocrStart,
     });
 
+    extraction = await withRep31WordBoxes(extraction, filePath, options, logs);
     statement = parseStatement(extraction);
   }
 
@@ -232,15 +278,8 @@ async function convertPdfToStatement(filePath, options = {}) {
     durationMs: Date.now() - totalStart,
   });
 
+  // Never hand back raw OCR text as if it were a converted statement (the old "SCANNED" sheet).
   if (statement.transactions.length === 0) {
-    if (options.scanned) {
-      return {
-        ...statement,
-        transactions: [],
-        rawLines: extraction.lines.map((line) => String(line.text || line)),
-      };
-    }
-
     const error = new Error("No transaction rows were detected in this PDF.");
     error.code = "NO_TRANSACTIONS_FOUND";
     throw error;
@@ -277,6 +316,7 @@ async function convertPdfToStatement(filePath, options = {}) {
     }
   }
 
+  statement.review = reviewStatus(statement);
   return statement;
 }
 

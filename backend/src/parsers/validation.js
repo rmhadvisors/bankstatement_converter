@@ -150,7 +150,29 @@ function findSuspiciousReferenceNumbers(transactions) {
     }));
 }
 
+const describeAmounts = (debit, credit) => {
+  const fmt = (value) => Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const parts = [debit !== null ? `debit ${fmt(debit)}` : null, credit !== null ? `credit ${fmt(credit)}` : null].filter(Boolean);
+  return parts.length ? parts.join(" and ") : "no amount";
+};
+
+// Never silent: every row whose amount or side is rewritten from the balance chain gets a
+// `balanceCorrection` note, which reviewStatus() turns into a needs_review reason.
 function correctDebitCreditByBalance(transactions) {
+  // 0.00 and an empty cell are the same amount; dropping a printed 0.00 is not a change.
+  const amount = (value) => (moneyOrNull(value) === 0 ? null : moneyOrNull(value));
+  const before = new Map(transactions.map((row) => [row, [amount(row.withdrawal), amount(row.deposit)]]));
+  rebuildAmountsFromBalance(transactions);
+  for (const row of transactions) {
+    const [oldDebit, oldCredit] = before.get(row);
+    const [newDebit, newCredit] = [amount(row.withdrawal), amount(row.deposit)];
+    if (oldDebit === newDebit && oldCredit === newCredit) continue;
+    row.balanceCorrection = `printed ${describeAmounts(oldDebit, oldCredit)} changed to ${describeAmounts(newDebit, newCredit)} to fit the balance; please verify against the PDF`;
+  }
+  return transactions;
+}
+
+function rebuildAmountsFromBalance(transactions) {
   const rows = isChronological(transactions) ? transactions : [...transactions].reverse();
 
   for (let index = 1; index < rows.length; index += 1) {
@@ -262,7 +284,8 @@ function buildValidationReport(statement, lines = []) {
       });
     }
 
-    if ((withdrawal !== null && withdrawal < 0) || (deposit !== null && deposit < 0)) {
+    // A bank-printed reversal ("-35,740.00" in the deposit column) is negative on purpose.
+    if (!row.isReversal && ((withdrawal !== null && withdrawal < 0) || (deposit !== null && deposit < 0))) {
       issues.push({
         severity: "error",
         rowNumber: index + 1,
@@ -385,7 +408,44 @@ function removeDuplicateTransactions(transactions, logs = []) {
   return result;
 }
 
+// "needs_review" whenever the converted rows can't be trusted as-is: the running balance breaks,
+// opening + credits - debits misses the closing balance, the rows' totals differ from the bank's
+// printed totals, or a parser's own reconciliation against the statement failed. Such a file is
+// still returned, but must never look like a normal success.
+function reviewStatus(statement) {
+  const reasons = [];
+  const report = statement.reconciliation || {};
+  const fmt = (value) => Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  for (const issue of report.issues || []) {
+    reasons.push(issue.difference !== undefined ? `${issue.message} (difference ${fmt(issue.difference)})` : issue.message);
+  }
+  const breaks = report.suspiciousTransactions || [];
+  if (breaks.length) reasons.push(`Running balance breaks on ${breaks.length} row(s).`);
+
+  const printed = statement.printedTotals;
+  if (printed) {
+    for (const [key, label, calculated] of [["withdrawal", "debits", report.totalDebits], ["deposit", "credits", report.totalCredits]]) {
+      if (printed[key] !== null && printed[key] !== undefined && calculated !== undefined && Math.abs(printed[key] - calculated) > 0.05) {
+        reasons.push(`Total ${label} ${fmt(calculated)} do not match the printed total ${fmt(printed[key])}.`);
+      }
+    }
+  }
+  (statement.transactions || []).forEach((row, index) => {
+    if (!row.balanceCorrection) return;
+    const date = row.date instanceof Date ? ` (${row.date.toISOString().slice(0, 10).split("-").reverse().join("-")})` : "";
+    reasons.push(`Row ${index + 1}${date}: ${row.balanceCorrection}.`);
+  });
+  // Parser-level checks against the statement's own summary (BCCB, Apna Sahakari, IDBI, ICICI ...).
+  for (const log of statement.logs || []) {
+    if (log.level === "error" && log.stage === "parse" && !reasons.includes(log.message)) reasons.push(log.message);
+  }
+
+  return { status: reasons.length ? "needs_review" : "ok", reasons };
+}
+
 export {
+  reviewStatus,
   buildValidationReport,
   calculateTransactionTotals,
   correctDebitCreditByBalance,

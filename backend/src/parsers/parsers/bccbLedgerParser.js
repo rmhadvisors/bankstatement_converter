@@ -25,7 +25,8 @@ function isBccbLedgerLayout(lines) {
 // continuation (wrapped-narration) line ever starts this way, so this is a safe, unambiguous row
 // boundary -- exactly what the merged-multi-transaction bug needed.
 const ROW_PATTERN =
-  /^(\d{2}-[A-Za-z]{3}-\d{4})\s+(\d{2}-[A-Za-z]{3}-\d{4})\s+(.+?)\s+([\d,]+\.\d{1,2})\s+([\d,]+\.\d{1,2})\s+([\d,]+\.\d{1,2})$/;
+  // Balance may be negative: an ODCC (overdraft) account prints "-3,960,255.36".
+  /^(\d{2}-[A-Za-z]{3}-\d{4})\s+(\d{2}-[A-Za-z]{3}-\d{4})\s+(.+?)\s+([\d,]+\.\d{1,2})\s+([\d,]+\.\d{1,2})\s+(-?[\d,]+\.\d{1,2})$/;
 
 const REFF_PATTERN = /^\d{9,}$/;
 
@@ -66,7 +67,7 @@ function extractStatementPeriod(lines) {
 // numbers in that same order -- distinguishing it from any transaction row (which only ever has
 // three trailing amounts) is exactly the six-number shape matched here.
 const SUMMARY_PATTERN =
-  /^([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+(\d+)\s+(\d+)\s+([\d,]+\.\d{2})$/;
+  /^(-?[\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+(\d+)\s+(\d+)\s+(-?[\d,]+\.\d{2})$/;
 
 function extractStatementSummary(lines) {
   let afterHeader = false;
