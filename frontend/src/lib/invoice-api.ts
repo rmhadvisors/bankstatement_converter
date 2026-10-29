@@ -55,11 +55,11 @@ export async function validateInvoices(items: ExportItem[], parties: Party[], fi
   return (await jsonOrThrow<{ results: Evaluated[] }>(response)).results;
 }
 
-export async function exportInvoices(items: ExportItem[], parties: Party[], financialYear: string): Promise<void> {
+export async function exportInvoices(items: ExportItem[], parties: Party[], financialYear: string, includePartySettings = false): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/api/invoice/export`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items, parties, financialYear }),
+    body: JSON.stringify({ items, parties, financialYear, includePartySettings }),
   });
   if (!response.ok) await jsonOrThrow(response);
   const url = URL.createObjectURL(await response.blob());

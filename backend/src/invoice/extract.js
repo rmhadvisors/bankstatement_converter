@@ -33,7 +33,7 @@ function skeleton(schema) {
   if (schema.oneOf) return `one of ${schema.oneOf.map((v) => JSON.stringify(v)).join(" | ")} or null`;
   if (Array.isArray(schema)) return [skeleton(schema[0])];
   if (schema["*"]) return { "<field path>": "medium | low" };
-  return Object.fromEntries(Object.entries(schema).filter(([key]) => key !== "derived").map(([key, value]) => [key, skeleton(value)]));
+  return Object.fromEntries(Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals"].includes(key)).map(([key, value]) => [key, skeleton(value)]));
 }
 
 const SYSTEM_PROMPT = `You transcribe Indian GST invoices, bills and receipts (printed or handwritten, often phone photos of carbon copies with stamps, signatures and notes) into JSON for an accountant. The accountant re-checks every number in code, so your only job is to copy exactly what is written.

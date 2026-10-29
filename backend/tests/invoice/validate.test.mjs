@@ -133,7 +133,7 @@ test("invoice validation: digital PDF sample is OK, intra-state CGST/SGST check 
 test("invoice validation: handwritten paid sample is OK with round-off, words, and a verify-HSN note", () => {
   const result = validateInvoice(handwrittenPaid(), OPTIONS);
   assert.equal(result.status, "OK", messages(result).join("; "));
-  assert.deepEqual(messages(result, "note"), ['Verify line 1 HSN/SAC: read as "3120" (low confidence)']);
+  assert.deepEqual(messages(result, "note"), ["Please check (hard to read): line 1 HSN 3120."]);
   assert.equal(result.computed.roundOff, 0.1);
   assert.equal(result.computed.amountInWords, "Thirteen Thousand Five Hundred Seventeen Only");
 });
@@ -142,11 +142,11 @@ test("invoice validation: P.T.O. with blank totals is INCOMPLETE and the line mi
   const inv = handwrittenPto();
   const result = validateInvoice(inv, OPTIONS);
   assert.equal(result.status, "INCOMPLETE");
-  assert.deepEqual(messages(result, "incomplete"), [
-    "Continued overleaf (P.T.O.) -- next page not included",
-    "Totals section blank; sum of lines 2,15,379 (computed only)",
+  assert.deepEqual(messages(result), [
+    "Totals, CGST, SGST and grand total are blank and the page says P.T.O. Upload the back page or enter the totals.",
+    "The 4 lines add up to Rs 2,15,379. At 18% GST that would be CGST 19,384.11 and SGST 19,384.11 (not on the invoice).",
+    "Line 1: written 1,54,624, but 966.45 x 160 = 1,54,632.",
   ]);
-  assert.deepEqual(messages(result, "review"), ["Line 1 (Wall extra works): 1,54,624 written vs 1,54,632 computed (qty x rate)"]);
   assert.deepEqual(result.computed.lines.map((l) => l.ok), [false, true, true, null], "lump-sum line is not checked");
   assert.equal(inv.lineItems[0].amount, 154624, "written amount untouched");
 });
@@ -154,7 +154,7 @@ test("invoice validation: P.T.O. with blank totals is INCOMPLETE and the line mi
 test("invoice validation: short payment is a note with the difference, status stays OK", () => {
   const result = validateInvoice(handwrittenShortPaid(), OPTIONS);
   assert.equal(result.status, "OK", messages(result).join("; "));
-  assert.deepEqual(messages(result, "note"), ["Payment received 69,077, 590.20 less than grand total"]);
+  assert.deepEqual(messages(result, "note"), ["Payment received Rs 69,077 is Rs 590.20 less than the grand total."]);
   assert.deepEqual(result.computed.payment, { status: "partial", shortBy: 590.2 });
 });
 
@@ -167,16 +167,16 @@ test("invoice validation: arithmetic, tax type, words, GSTIN and date problems n
     assert.equal(result.status, "NEEDS REVIEW", `expected review for ${pattern}`);
     assert.match(messages(result, "review").join("\n"), pattern);
   };
-  check((i) => (i.totals.taxableAmount = 51000), /Sum of lines 50,000 vs taxable amount 51,000/);
-  check((i) => (i.totals.cgst = 4600), /CGST: 4,600 written vs 4,500 computed/);
+  check((i) => (i.totals.taxableAmount = 51000), /The lines add up to Rs 50,000, but the taxable amount written is Rs 51,000/);
+  check((i) => (i.totals.cgst = 4600), /CGST: written 4,600, but the GST rate gives 4,500/);
   check((i) => Object.assign(i.totals, { cgst: 0, sgst: 0, igst: 9000 }), /IGST charged, but supplier and place of supply are both state 27/);
   check((i) => (i.placeOfSupply = "29-KARNATAKA"), /CGST\/SGST charged, but supplier state 27 differs from place of supply 29/);
-  check((i) => (i.totals.grandTotal = 59500), /Grand total 59,500 vs taxable \+ taxes 59,000/);
-  check((i) => (i.totals.amountInWords = "Fifty Eight Thousand Only"), /Amount in words says 58,000/);
-  check((i) => (i.supplier.gstin = SUPPLIER_A.slice(0, 14) + "0"), /Supplier GSTIN .*possible misread/);
+  check((i) => (i.totals.grandTotal = 59500), /Grand total 59,500 does not match taxable \+ taxes \(59,000/);
+  check((i) => (i.totals.amountInWords = "Fifty Eight Thousand Only"), /The amount in words says 58,000/);
+  check((i) => (i.supplier.gstin = SUPPLIER_A.slice(0, 14) + "0"), /Supplier GSTIN .* looks wrong .*probably misread/);
   check((i) => (i.invoiceDate = "01/11/2026"), /in the future/);
   check((i) => (i.invoiceDate = "15/03/2026"), /outside FY 2026-27/);
-  check((i) => (i.invoiceDate = "31/02/2026"), /not a valid dd\/mm\/yyyy/);
+  check((i) => (i.invoiceDate = "31/02/2026"), /is not a valid date/);
   check((i) => (i.totals.roundOff = 1.5), /Round-off 1.50 is more than/);
 
   const interState = structuredClone(base);
@@ -200,8 +200,8 @@ test("invoice batch: duplicates within the batch and against history", () => {
     { ...OPTIONS, history: [{ supplierGstin: SUPPLIER_A, invoiceNo: "6", invoiceDate: "16/08/2026" }] },
   );
   assert.deepEqual(results.map((r) => r.status), ["OK", "NEEDS REVIEW", "NEEDS REVIEW"]);
-  assert.match(messages(results[1]).join(), /Duplicate: same supplier and invoice no\. as a\.pdf in this batch/);
-  assert.match(messages(results[2]).join(), /Duplicate: .* history \(16\/08\/2026\)/);
+  assert.match(messages(results[1]).join(), /Possible duplicate: same supplier and invoice no\. as a\.pdf in this batch/);
+  assert.match(messages(results[2]).join(), /Possible duplicate: .* history \(16\/08\/2026\)/);
 });
 
 test("invoice parties: GSTIN first, then fuzzy name; unknown parties get a guess", () => {

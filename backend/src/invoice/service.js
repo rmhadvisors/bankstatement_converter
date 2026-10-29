@@ -134,7 +134,7 @@ async function handleInvoiceExport(request) {
     return invoiceError("ENTRY_TYPE_NEEDED", `Choose the Tally entry type for: ${[...new Set(unconfirmed.map((e) => e.party.name))].join(", ")}.`, 422);
   }
   const entries = evaluated.map((entry) => ({ ...entry, entryType: entry.party.entryType, partyName: entry.party.name }));
-  const buffer = await buildTallyWorkbookBuffer(entries, body.parties ?? []);
+  const buffer = await buildTallyWorkbookBuffer(entries, body.parties ?? [], { includePartySettings: body.includePartySettings === true });
   return new Response(buffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

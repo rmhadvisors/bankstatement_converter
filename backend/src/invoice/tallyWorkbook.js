@@ -6,6 +6,10 @@ import { parseDmy } from "./validate.js";
 const TEAL = "FF2F5F5F";
 const YELLOW = "FFFFF2CC"; // light yellow, as in the client's sample workbook
 const NOTE_GREY = "FF808080";
+// Text about payment, for the Review sheet's payment note.
+const PAYMENT_WORDS = /\b(?:recd|rcvd|received|recieved|paid|payment|pymt|cheque|chq|ch\.? no|neft|rtgs|imps|upi|utr|cash|advance|balance due)\b/i;
+// The grey explanation lines written under a table.
+const NOTE_ROW = /^(?:Yellow row|Used for TCS|Placeholder:)/;
 const MONEY = "#,##0.00";
 const DATE = "dd/mm/yyyy";
 
@@ -93,28 +97,48 @@ function gstRows(entry, gstLines) {
   const { invoice, result } = entry;
   const t = invoice.totals ?? {};
   const intra = result.computed.intraState;
-  const rateOf = (line) => (has(line.gstRate) ? line.gstRate : has(t.igstRate) ? t.igstRate : has(t.cgstRate) ? t.cgstRate * 2 : null);
-  const rates = [...new Set(gstLines.map(rateOf))];
+  // Only rates written on the lines split an invoice; a line without a rate is "rate unknown" and
+  // stays in the invoice's row (validate.js notes it).
+  const rates = [...new Set(gstLines.map((line) => line.gstRate).filter(has))];
   const notes = [];
+  const totalsBlank = result.computed.taxable === null && !has(t.grandTotal);
+
+  // INCOMPLETE (totals blank): amounts stay blank unless "Use computed totals" was chosen.
+  if (totalsBlank) {
+    const use = invoice.useComputedTotals === true;
+    const tax = use && rates.length === 1 ? round2((result.computed.linesSum * rates[0]) / 100) : null;
+    return {
+      rows: [{
+        rate: rates.length === 1 ? rates[0] : null,
+        lines: gstLines,
+        taxable: use ? result.computed.linesSum : null,
+        igst: tax === null ? null : intra === false ? tax : 0,
+        cgst: tax === null ? null : intra === false ? 0 : round2(tax / 2),
+        sgst: tax === null ? null : intra === false ? 0 : round2(tax / 2),
+      }],
+      notes: use ? ["Amounts are the computed totals chosen on the review screen, not written on the invoice."] : [],
+    };
+  }
 
   if (rates.length <= 1) {
     const taxable = result.computed.taxable;
-    const known = taxable !== null;
     return {
       rows: [{
         rate: rates[0] ?? null,
         lines: gstLines,
         taxable,
-        igst: !known ? null : intra === true ? 0 : has(t.igst) ? t.igst : null,
-        cgst: !known ? null : intra === false ? 0 : has(t.cgst) ? t.cgst : null,
-        sgst: !known ? null : intra === false ? 0 : has(t.sgst) ? t.sgst : null,
+        igst: intra === true ? 0 : has(t.igst) ? t.igst : null,
+        cgst: intra === false ? 0 : has(t.cgst) ? t.cgst : null,
+        sgst: intra === false ? 0 : has(t.sgst) ? t.sgst : null,
       }],
       notes,
     };
   }
 
-  const rows = rates.map((rate) => {
-    const lines = gstLines.filter((line) => rateOf(line) === rate);
+  const unknown = gstLines.filter((line) => !has(line.gstRate));
+  const rows = rates.map((rate, index) => {
+    // Lines without a written rate go with the first rate's row (noted in Review).
+    const lines = [...gstLines.filter((line) => line.gstRate === rate), ...(index === 0 ? unknown : [])];
     const sum = (key) => (lines.every((line) => has(line[key])) ? round2(lines.reduce((a, line) => a + line[key], 0)) : null);
     const values = lines.map(lineValue);
     return {
@@ -133,7 +157,8 @@ function gstRows(entry, gstLines) {
 }
 
 // entries: [{ invoice, result, sourceFile, entryType, partyName }]; parties: [{ name, gstin, entryType }]
-async function buildTallyWorkbookBuffer(entries, parties = []) {
+// options.includePartySettings: add the Party Settings sheet (off by default).
+async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySettings = false } = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Bank Statement Convertor";
   const sorted = [...entries].sort((a, b) => (parseDmy(a.invoice.invoiceDate)?.getTime() ?? 0) - (parseDmy(b.invoice.invoiceDate)?.getTime() ?? 0));
@@ -229,8 +254,8 @@ async function buildTallyWorkbookBuffer(entries, parties = []) {
   const reviewYellow = new Set();
   for (const entry of sorted) {
     const reasons = entry.result.reasons;
-    // Payment note = what is written on the invoice; every check result goes to the review notes.
-    const payment = entry.invoice.handwrittenNotes ?? [];
+    // Payment note = what is written about payment outside the item table; check results go to the review notes.
+    const payment = (entry.invoice.handwrittenNotes ?? []).filter((note) => PAYMENT_WORDS.test(note));
     const notes = [...reasons.map((r) => r.message), ...extraNotes.get(entry)];
     if (entry.result.status === "OK") notes.unshift(arithmeticSummary(entry));
     const added = review.addRow([
@@ -247,10 +272,19 @@ async function buildTallyWorkbookBuffer(entries, parties = []) {
   }
   finish(review, { moneyColumns: [5], wrapColumns: [6, 7], highlight: reviewYellow });
 
-  const settings = addSheet(workbook, "Party Settings", ["SR.NO", "PARTY NAME", "ENTRY TYPE", "OUTPUT SHEET"], [7, 30, 12, 16]);
-  const outputSheet = { STOCK: "GST Entries", NORMAL: "GST Entries", TCS: "TCS Entries", IMPORT: "Import file format (pending)" };
-  parties.forEach((party, i) => settings.addRow([i + 1, party.name, party.entryType, outputSheet[party.entryType] ?? ""]));
-  finish(settings);
+  if (includePartySettings) {
+    const settings = addSheet(workbook, "Party Settings", ["SR.NO", "PARTY NAME", "ENTRY TYPE", "OUTPUT SHEET"], [7, 30, 12, 16]);
+    const outputSheet = { STOCK: "GST Entries", NORMAL: "GST Entries", TCS: "TCS Entries", IMPORT: "Import file format (pending)" };
+    parties.forEach((party, i) => settings.addRow([i + 1, party.name, party.entryType, outputSheet[party.entryType] ?? ""]));
+    finish(settings);
+  }
+
+  // Sheets with no rows are left out (the Review sheet always stays).
+  for (const sheet of [...workbook.worksheets]) {
+    let rows = 0;
+    sheet.eachRow((row, n) => n > 1 && row.getCell(1).value !== null && !NOTE_ROW.test(String(row.getCell(1).value)) && rows++);
+    if (sheet.name !== "Review" && rows === 0) workbook.removeWorksheet(sheet.id);
+  }
 
   return workbook.xlsx.writeBuffer();
 }

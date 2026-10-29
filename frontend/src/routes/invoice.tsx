@@ -18,7 +18,7 @@ import {
   type Party,
   type ProviderInfo,
 } from "@/lib/invoice-api";
-import { loadParties, saveParty, type PartyStore } from "@/lib/invoice-parties";
+import { loadParties, readIncludePartySheet, saveParty, type PartyStore } from "@/lib/invoice-parties";
 import { InvoiceProviderNote } from "@/components/invoice-provider-note";
 
 export const Route = createFileRoute("/invoice")({
@@ -217,7 +217,7 @@ function InvoicePage() {
     }
     setExporting(true);
     try {
-      await exportInvoices(ready.map((item) => ({ invoice: item.invoice!, sourceFile: item.file.name })), parties, financialYear);
+      await exportInvoices(ready.map((item) => ({ invoice: item.invoice!, sourceFile: item.file.name })), parties, financialYear, readIncludePartySheet());
       const flagged = ready.filter((item) => item.evaluated?.status !== "OK").length;
       toast.success(flagged ? `Exported. ${flagged} invoice(s) are marked for review in the Excel file.` : "Exported.");
     } catch (error) {
@@ -486,6 +486,21 @@ function ReviewPanel({
               </li>
             ))}
           </ul>
+        )}
+        {evaluated?.reasons.some((r) => r.field === "totals.computed") && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => onEdit("useComputedTotals", invoice.useComputedTotals === true ? null : true)}
+              aria-pressed={invoice.useComputedTotals === true}
+              className="rounded-md border px-2 py-1 font-medium hover:bg-muted"
+            >
+              {invoice.useComputedTotals === true ? "Leave totals blank in Tally" : "Use computed totals"}
+            </button>
+            <span className="text-muted-foreground">
+              {invoice.useComputedTotals === true ? "The sum of the lines will be written to the Tally sheet." : "The Tally row stays blank until the totals are entered or this is chosen."}
+            </span>
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

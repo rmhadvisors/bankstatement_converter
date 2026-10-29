@@ -31,6 +31,8 @@ const INVOICE_SCHEMA = {
   unreadable: [{ field: str, reason: str }],
   // Filled in by rules.js (never by the model): what code derived from the reading.
   derived: [str],
+  // Set only by the review screen's "Use computed totals" button (never by the model).
+  useComputedTotals: "boolean",
 };
 
 function check(schema, value, path, errors) {

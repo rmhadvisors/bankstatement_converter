@@ -65,7 +65,7 @@ const DESCRIPTIONS = {
   accountNo: "Account number",
   ifsc: "IFSC code",
   branch: "Branch",
-  handwrittenNotes: "Every handwritten annotation on this invoice sheet that is not part of the printed form, verbatim; ignore text on other papers at the photo edges",
+  handwrittenNotes: "Handwritten annotations OUTSIDE the item table only (payment notes, received stamps, remarks), verbatim. Do not repeat the invoice number, date, buyer, item descriptions, rates or amounts here. Ignore text on other papers at the photo edges",
   continuedOverleaf: "true only if THIS invoice sheet says P.T.O. / continued, or its totals are on a page not included. Ignore P.T.O. or any text printed on other papers visible at the edges of the photo",
 };
 
@@ -80,7 +80,7 @@ function toSarvamSchema(schema, key = "invoice") {
   if (Array.isArray(schema)) return { type: "array", description, items: toSarvamSchema(schema[0], "item") };
   const properties = Object.fromEntries(
     Object.entries(schema)
-      .filter(([k]) => !["confidence", "unreadable", "derived"].includes(k))
+      .filter(([k]) => !["confidence", "unreadable", "derived", "useComputedTotals"].includes(k))
       .map(([k, v]) => [k, toSarvamSchema(v, k)]),
   );
   return { type: "object", description: key === "item" ? "Line item row" : description, properties };

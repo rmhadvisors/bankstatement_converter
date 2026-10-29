@@ -13,6 +13,23 @@ const localKey = (userId: string) => `invoice-parties:${userId}`;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const table = (name = "invoice_parties") => (supabase as any).from(name);
 
+// Export option: add the Party Settings sheet to the Excel file (off by default). Per browser.
+const PARTY_SHEET_KEY = "invoice-export:party-settings-sheet";
+export function readIncludePartySheet(): boolean {
+  try {
+    return window.localStorage.getItem(PARTY_SHEET_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function writeIncludePartySheet(on: boolean) {
+  try {
+    window.localStorage.setItem(PARTY_SHEET_KEY, on ? "1" : "0");
+  } catch {
+    // Storage blocked: the default (off) applies.
+  }
+}
+
 function readLocal(userId: string): Party[] | null {
   try {
     const saved = window.localStorage.getItem(localKey(userId));

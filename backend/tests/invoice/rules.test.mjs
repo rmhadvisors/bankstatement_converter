@@ -24,8 +24,8 @@ test("rules: qty/unit from the description, GST rate from the totals, computed r
   assert.ok(invoice.lineItems.every((l) => l.gstRate === 18));
   assert.equal(invoice.totals.roundOff, 0.08);
   assert.equal(invoice.confidence["lineItems[0].qty"], "medium");
-  assert.ok(derived.some((d) => /qty 966.45 sqft taken from the description/.test(d)));
-  assert.ok(derived.some((d) => /GST 18% applied to all lines/.test(d)));
+  assert.ok(derived.some((d) => /area 966.45 sqft taken from the description/.test(d)));
+  assert.ok(derived.some((d) => /GST 18% applied to every line/.test(d)));
 });
 
 test("rules: two quantities in one description are ambiguous and left empty; no round-off stays blank", () => {

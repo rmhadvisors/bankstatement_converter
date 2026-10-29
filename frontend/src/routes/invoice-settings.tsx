@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ConverterTabs } from "@/components/converter-tabs";
 import { ENTRY_TYPES, getInvoiceConfig, type EntryType, type Party, type ProviderInfo } from "@/lib/invoice-api";
-import { deleteParty, loadParties, saveParty, type PartyStore } from "@/lib/invoice-parties";
+import { deleteParty, loadParties, readIncludePartySheet, saveParty, writeIncludePartySheet, type PartyStore } from "@/lib/invoice-parties";
 import { InvoiceProviderNote } from "@/components/invoice-provider-note";
 
 export const Route = createFileRoute("/invoice-settings")({
@@ -22,6 +22,7 @@ function InvoiceSettingsPage() {
   const [store, setStore] = useState<PartyStore>("browser");
   const [draft, setDraft] = useState<Party>({ name: "", gstin: null, entryType: "STOCK" });
   const [provider, setProvider] = useState<ProviderInfo | null>(null);
+  const [partySheet, setPartySheet] = useState(readIncludePartySheet);
 
   useEffect(() => {
     if (!loading && !user) nav({ to: "/" });
@@ -77,6 +78,18 @@ function InvoiceSettingsPage() {
           <div className="mt-4">
             <InvoiceProviderNote provider={provider} />
           </div>
+
+          <label className="mt-4 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={partySheet}
+              onChange={(e) => {
+                setPartySheet(e.target.checked);
+                writeIncludePartySheet(e.target.checked);
+              }}
+            />
+            Include a Party Settings sheet in the Excel export
+          </label>
 
           <table className="mt-4 w-full text-sm">
             <thead>

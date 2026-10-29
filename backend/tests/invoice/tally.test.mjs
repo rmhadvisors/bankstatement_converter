@@ -110,3 +110,71 @@ test("Tally workbook: multi-rate GST rows, TCS bar bill, IMPORT placeholder, unk
   const unknown = evaluate([{ invoice: { supplier: { name: "Brand New Supplier" }, lineItems: [{ description: "Cement", hsnSac: "2523", qty: 1, rate: 1, amount: 1 }] } }], OPTIONS);
   assert.deepEqual([unknown[0].party.source, unknown[0].party.entryType], ["guess", "STOCK"]);
 });
+
+// Regression (export rules): the saved Sarvam reading of the client's P.T.O. invoice, run through the
+// same rules, checks and export as a live reading. No API call; skips without the git-ignored file.
+const sarvamReadings = ["invoice1", "invoice2", "invoice3", "invoice4"].map((name) => join(demoDir, `${name}.sarvam.live.json`));
+test("saved Sarvam readings: one row per invoice, INCOMPLETE stays blank, payment notes, plain review notes, sheets", { skip: !sarvamReadings.every(existsSync) && "needs the saved Sarvam readings (git-ignored)" }, async () => {
+  const { applyReadingRules } = await import("../../src/invoice/rules.js");
+  const { validateInvoiceJson } = await import("../../src/invoice/schema.js");
+  const parties = JSON.parse(readFileSync(join(demoDir, "parties.json"), "utf8"));
+  const items = sarvamReadings.map((path) => {
+    const saved = JSON.parse(readFileSync(path, "utf8"));
+    const { invoice, derived } = applyReadingRules(validateInvoiceJson(saved.invoice).invoice);
+    return { invoice: { ...invoice, derived }, sourceFile: saved.file };
+  });
+  const evaluated = evaluate(items, { ...OPTIONS, parties });
+  const pto = evaluated.find((e) => e.result.status === "INCOMPLETE");
+  assert.ok(pto, "the P.T.O. invoice is INCOMPLETE");
+
+  // 4. Plain, ordered review notes; no field paths, no duplicates, one "please check" per field.
+  const notes = pto.result.reasons.map((r) => r.message);
+  assert.equal(notes[0], "Totals, CGST, SGST and grand total are blank and the page says P.T.O. Upload the back page or enter the totals.");
+  assert.match(notes[1], /^The 4 lines add up to Rs 2,15,379\. At 18% GST that would be CGST 19,384\.11 and SGST 19,384\.11 \(not on the invoice\)\.$/);
+  assert.ok(notes.includes("Line 1: written 1,54,624, but 966.45 sqft x 160 = 1,54,632."));
+  assert.ok(notes.some((n) => /^Line 4 \(.+, 8,950\): no GST rate written\.$/.test(n)));
+  assert.ok(notes.includes("Please check (hard to read): line 3 area 172.25 sqft."));
+  assert.equal(notes.length, 5, notes.join(" | "));
+  for (const e of evaluated) {
+    const messages = e.result.reasons.map((r) => r.message);
+    assert.equal(new Set(messages).size, messages.length, "no duplicate notes");
+    assert.ok(messages.every((m) => !/\w+\[\d+\]|handwrittenNotes|lineItems|totals\.\w/.test(m)), "no field paths");
+  }
+
+  // 3. Payment notes: only payment text, never the invoice's transcription.
+  assert.deepEqual(pto.invoice.handwrittenNotes, []);
+  const workbook = await toWorkbook(evaluated, parties);
+
+  // 5. No empty sheets, no Party Settings by default.
+  assert.deepEqual(workbook.worksheets.map((s) => s.name), ["GST Entries", "Stock Items", "Review"]);
+
+  // 1 + 2. One GST row per invoice; the INCOMPLETE one has blank amounts and is yellow.
+  const gst = workbook.getWorksheet("GST Entries");
+  const gstAll = rows(gst);
+  const gstRows = gstAll.filter((r) => r[3] && r[3] !== "TOTAL");
+  assert.equal(gstRows.length, 4);
+  const ptoRow = gstRows.find((r) => r[3] === pto.invoice.invoiceNo);
+  assert.deepEqual(ptoRow.slice(4, 8), [null, null, null, null]);
+  const ptoRowNumber = gstAll.indexOf(ptoRow) + 2;
+  assert.equal(gst.getRow(ptoRowNumber).getCell(1).fill?.fgColor?.argb, "FFFFF2CC");
+
+  // The other three readings export the same GST figures as the hand-typed values.
+  const expected = JSON.parse(readFileSync(join(demoDir, "expected.json"), "utf8")).sheets["GST Entries"];
+  assert.deepEqual(gstRows.map((r) => r.slice(0, 8)), expected.slice(1, 5).map((r) => r.slice(0, 8)));
+
+  const review = rows(workbook.getWorksheet("Review"));
+  const ptoReview = review.find((r) => r[0] === pto.invoice.invoiceNo);
+  assert.equal(ptoReview[5] || null, null, "no payment note on the P.T.O. invoice");
+  assert.ok(review.every((r) => !r[5] || /payment|cheque|neft|recd|received|recieved/i.test(r[5])), "payment notes are about payment");
+
+  // "Use computed totals" (review screen) is the only way the line sum reaches the Tally sheet.
+  pto.invoice.useComputedTotals = true;
+  const chosen = await toWorkbook(evaluate(items.map((item) => (item.invoice.invoiceNo === pto.invoice.invoiceNo ? { ...item, invoice: { ...item.invoice, useComputedTotals: true } } : item)), { ...OPTIONS, parties }), parties);
+  const chosenRow = rows(chosen.getWorksheet("GST Entries")).find((r) => r[3] === pto.invoice.invoiceNo);
+  assert.deepEqual(chosenRow.slice(4, 8), [215379, 0, 19384.11, 19384.11]);
+
+  // Party Settings only when asked for.
+  const withSettings = new ExcelJS.Workbook();
+  await withSettings.xlsx.load(await buildTallyWorkbookBuffer(evaluated.map((e) => ({ ...e, entryType: e.party.entryType, partyName: e.party.name })), parties, { includePartySettings: true }));
+  assert.ok(withSettings.getWorksheet("Party Settings"));
+});
