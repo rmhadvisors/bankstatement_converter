@@ -10,7 +10,7 @@ import { validateBatch } from "./validate.js";
 import { ENTRY_TYPES, guessEntryType, matchParty } from "./parties.js";
 import { buildTallyWorkbookBuffer } from "./tallyWorkbook.js";
 import { sniffType } from "./images.js";
-import { extractInvoice, providerConfigured } from "./extract.js";
+import { extractInvoice, providerConfigured, providerInfo } from "./extract.js";
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -36,7 +36,8 @@ async function loadDemoSamples() {
   if (demoSamples) return demoSamples;
   demoSamples = new Map();
   const names = await readdir(join(DEMO_DIR, "demo")).catch(() => []);
-  for (const name of names.filter((n) => n.endsWith(".json"))) {
+  // Hand-typed samples only (name.json); recorded AI readings (name.<provider>.live.json) are not demo data.
+  for (const name of names.filter((n) => /^[^.]+\.json$/.test(n))) {
     const sample = JSON.parse(await readFile(join(DEMO_DIR, "demo", name), "utf8"));
     if (typeof sample.file !== "string") continue; // parties.json, expected.json
     const source = await readFile(join(DEMO_DIR, sample.file)).catch(() => null);
@@ -148,7 +149,7 @@ async function loadDemoParties() {
 }
 
 async function handleInvoiceConfig() {
-  return json({ mode: mode(), defaultParties: await loadDemoParties(), entryTypes: ENTRY_TYPES });
+  return json({ mode: mode(), provider: providerInfo(), defaultParties: await loadDemoParties(), entryTypes: ENTRY_TYPES });
 }
 
 export { evaluate, handleInvoiceConfig, handleInvoiceConvertSubmit, handleInvoiceExport, handleInvoiceStatus, handleInvoiceValidate, setInvoiceExtractor };

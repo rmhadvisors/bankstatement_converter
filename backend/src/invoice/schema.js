@@ -29,6 +29,8 @@ const INVOICE_SCHEMA = {
   continuedOverleaf: "boolean",
   confidence: { "*": oneOf("high", "medium", "low") },
   unreadable: [{ field: str, reason: str }],
+  // Filled in by rules.js (never by the model): what code derived from the reading.
+  derived: [str],
 };
 
 function check(schema, value, path, errors) {

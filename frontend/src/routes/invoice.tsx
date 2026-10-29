@@ -16,8 +16,10 @@ import {
   type Invoice,
   type JobFile,
   type Party,
+  type ProviderInfo,
 } from "@/lib/invoice-api";
 import { loadParties, saveParty, type PartyStore } from "@/lib/invoice-parties";
+import { InvoiceProviderNote } from "@/components/invoice-provider-note";
 
 export const Route = createFileRoute("/invoice")({
   head: () => ({
@@ -85,6 +87,7 @@ function InvoicePage() {
   const [items, setItems] = useState<Item[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"demo" | "live" | null>(null);
+  const [provider, setProvider] = useState<ProviderInfo | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
   const [partyStore, setPartyStore] = useState<PartyStore>("browser");
   const [financialYear, setFinancialYear] = useState(currentFinancialYear());
@@ -102,7 +105,7 @@ function InvoicePage() {
   }, [loading, user, nav]);
 
   useEffect(() => {
-    getInvoiceConfig().then((config) => setMode(config.mode), () => setMode(null));
+    getInvoiceConfig().then((config) => (setMode(config.mode), setProvider(config.provider)), () => setMode(null));
   }, []);
 
   useEffect(() => {
@@ -261,9 +264,9 @@ function InvoicePage() {
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Invoices / Receipts to Tally Excel</h1>
               <p className="text-sm text-muted-foreground">Photos (JPG, PNG, HEIC) and PDFs, several at once. Check and correct, then export.</p>
-              <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Info className="h-3.5 w-3.5" /> Invoice images are read by an AI service.
-              </p>
+              <div className="mt-2">
+                <InvoiceProviderNote provider={provider} />
+              </div>
             </div>
             <label className="text-sm">
               <span className="mr-2 font-medium">Financial year</span>

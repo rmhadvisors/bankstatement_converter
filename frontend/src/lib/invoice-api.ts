@@ -26,7 +26,9 @@ async function jsonOrThrow<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export async function getInvoiceConfig(): Promise<{ mode: "demo" | "live"; defaultParties: Party[] }> {
+export type ProviderInfo = { provider: string; configured: boolean; testingOnly: boolean; where: string | null; notes: string[] };
+
+export async function getInvoiceConfig(): Promise<{ mode: "demo" | "live"; provider: ProviderInfo; defaultParties: Party[] }> {
   return jsonOrThrow(await fetch(`${API_BASE_URL}/api/invoice/config`));
 }
 

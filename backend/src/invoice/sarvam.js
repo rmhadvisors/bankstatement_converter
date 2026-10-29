@@ -34,8 +34,8 @@ const DESCRIPTIONS = {
   sno: "Serial number of the row",
   description: "Item or work description as written",
   hsnSac: "HSN or SAC code exactly as written",
-  qty: "Quantity as a number",
-  unit: "Unit as written (e.g. KGS, sqft, Nos)",
+  qty: "Quantity or area as a number. If there is no quantity column, take the quantity or area written inside the description (\"total area 337 sq ft\" -> 337); empty if none is written",
+  unit: "Unit of the quantity as written (KGS, sqft, Nos); if the quantity comes from the description, the unit written next to it",
   rate: "Rate per unit as a number",
   discount: "Discount amount on the row as a number",
   taxableValue: "Taxable value column of the row, only if the invoice has that column",
@@ -52,12 +52,12 @@ const DESCRIPTIONS = {
   igstRate: "IGST percent as written",
   roundOff: "Round off amount as written (negative if subtracted)",
   grandTotal: "Grand total as written",
-  amountInWords: "Amount in words exactly as written",
+  amountInWords: "Amount in words exactly as written, including handwritten words next to \"In Words\"",
   tcs: "TCS amount as written",
   payment: "Payment details from printed or handwritten notes",
-  status: "paid only if a note says the full amount was received; partial or unpaid otherwise",
+  status: "Leave empty (computed by the accountant from the amount)",
   mode: "Payment mode as written (cash, cheque, NEFT, UPI)",
-  reference: "Cheque / UTR / reference number as written",
+  reference: "Cheque, UTR or NEFT reference number copied digit by digit exactly as written (keep leading zeros). Never the amount",
   date: "Payment date as dd/mm/yyyy",
   note: "Payment note as written",
   bankDetails: "Supplier bank details printed on the invoice",
@@ -65,8 +65,8 @@ const DESCRIPTIONS = {
   accountNo: "Account number",
   ifsc: "IFSC code",
   branch: "Branch",
-  handwrittenNotes: "Every handwritten annotation that is not part of the printed form, verbatim",
-  continuedOverleaf: "true if the page says P.T.O. / continued, or the totals are on another page not included",
+  handwrittenNotes: "Every handwritten annotation on this invoice sheet that is not part of the printed form, verbatim; ignore text on other papers at the photo edges",
+  continuedOverleaf: "true only if THIS invoice sheet says P.T.O. / continued, or its totals are on a page not included. Ignore P.T.O. or any text printed on other papers visible at the edges of the photo",
 };
 
 // InvoiceJSON schema -> Sarvam JSON schema (no confidence/unreadable: Sarvam returns its own).
@@ -80,12 +80,12 @@ function toSarvamSchema(schema, key = "invoice") {
   if (Array.isArray(schema)) return { type: "array", description, items: toSarvamSchema(schema[0], "item") };
   const properties = Object.fromEntries(
     Object.entries(schema)
-      .filter(([k]) => !["confidence", "unreadable"].includes(k))
+      .filter(([k]) => !["confidence", "unreadable", "derived"].includes(k))
       .map(([k, v]) => [k, toSarvamSchema(v, k)]),
   );
   return { type: "object", description: key === "item" ? "Line item row" : description, properties };
 }
-const SARVAM_SCHEMA = JSON.stringify({ ...toSarvamSchema(INVOICE_SCHEMA), description: "Indian GST invoice or receipt transcribed exactly as written" });
+const SARVAM_SCHEMA = JSON.stringify({ ...toSarvamSchema(INVOICE_SCHEMA), description: "One Indian GST invoice or receipt transcribed exactly as written. Read only the main invoice sheet; ignore any other papers or text visible at the edges of the photo" });
 
 // Values -> InvoiceJSON types: "" -> null; an Indian-format numeric string -> number (only when the
 // whole string is a number, e.g. "1,54,624.00"); anything else is left for the schema check to reject.

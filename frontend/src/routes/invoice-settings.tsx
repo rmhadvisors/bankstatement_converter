@@ -4,8 +4,9 @@ import { toast, Toaster } from "sonner";
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ConverterTabs } from "@/components/converter-tabs";
-import { ENTRY_TYPES, type EntryType, type Party } from "@/lib/invoice-api";
+import { ENTRY_TYPES, getInvoiceConfig, type EntryType, type Party, type ProviderInfo } from "@/lib/invoice-api";
 import { deleteParty, loadParties, saveParty, type PartyStore } from "@/lib/invoice-parties";
+import { InvoiceProviderNote } from "@/components/invoice-provider-note";
 
 export const Route = createFileRoute("/invoice-settings")({
   head: () => ({ meta: [{ title: "Invoice party settings - RMH Advisors PDF Converter" }] }),
@@ -20,10 +21,15 @@ function InvoiceSettingsPage() {
   const [parties, setParties] = useState<Party[] | null>(null);
   const [store, setStore] = useState<PartyStore>("browser");
   const [draft, setDraft] = useState<Party>({ name: "", gstin: null, entryType: "STOCK" });
+  const [provider, setProvider] = useState<ProviderInfo | null>(null);
 
   useEffect(() => {
     if (!loading && !user) nav({ to: "/" });
   }, [loading, user, nav]);
+
+  useEffect(() => {
+    getInvoiceConfig().then((config) => setProvider(config.provider), () => setProvider(null));
+  }, []);
 
   useEffect(() => {
     if (user) loadParties(user.id).then(({ parties: list, store: where }) => (setParties(list), setStore(where)));
@@ -67,6 +73,10 @@ function InvoiceSettingsPage() {
           <p className="mt-1 text-xs text-muted-foreground">
             {store === "supabase" ? "Saved to your account." : "Saved in this browser only (the party settings table hasn't been set up yet)."}
           </p>
+
+          <div className="mt-4">
+            <InvoiceProviderNote provider={provider} />
+          </div>
 
           <table className="mt-4 w-full text-sm">
             <thead>

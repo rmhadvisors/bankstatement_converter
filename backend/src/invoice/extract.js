@@ -10,6 +10,14 @@ import { readFile } from "node:fs/promises";
 import { INVOICE_SCHEMA, validateInvoiceJson } from "./schema.js";
 import { sarvamProvider } from "./sarvam.js";
 import { validateInvoice } from "./validate.js";
+import { applyReadingRules } from "./rules.js";
+
+// Provider-independent clean-up (rules.js) of a schema-valid reading.
+const withRules = (invoice) => {
+  const { invoice: ruled, derived } = applyReadingRules(invoice);
+  ruled.derived = derived;
+  return ruled;
+};
 
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -25,7 +33,7 @@ function skeleton(schema) {
   if (schema.oneOf) return `one of ${schema.oneOf.map((v) => JSON.stringify(v)).join(" | ")} or null`;
   if (Array.isArray(schema)) return [skeleton(schema[0])];
   if (schema["*"]) return { "<field path>": "medium | low" };
-  return Object.fromEntries(Object.entries(schema).map(([key, value]) => [key, skeleton(value)]));
+  return Object.fromEntries(Object.entries(schema).filter(([key]) => key !== "derived").map(([key, value]) => [key, skeleton(value)]));
 }
 
 const SYSTEM_PROMPT = `You transcribe Indian GST invoices, bills and receipts (printed or handwritten, often phone photos of carbon copies with stamps, signatures and notes) into JSON for an accountant. The accountant re-checks every number in code, so your only job is to copy exactly what is written.
@@ -146,11 +154,32 @@ async function extractInvoice(file, options = {}) {
 
 // Which reader: INVOICE_PROVIDER = claude | sarvam | sarvam_then_claude; unset -> whichever key is set
 // (Claude if both). Both keys are optional: without one, the converter runs in demo mode.
+// Sarvam is used only when INVOICE_PROVIDER names it explicitly (testing, until its DPA and
+// zero-retention setting are confirmed): a SARVAM_API_KEY alone never sends invoices there.
 function chosenProvider() {
   const wanted = process.env.INVOICE_PROVIDER;
-  if (["claude", "sarvam", "sarvam_then_claude"].includes(wanted)) return wanted;
-  if (process.env.INVOICE_LLM_API_KEY) return "claude";
-  return process.env.SARVAM_API_KEY ? "sarvam" : "claude";
+  return ["claude", "sarvam", "sarvam_then_claude"].includes(wanted) ? wanted : "claude";
+}
+
+// What the pages show: which service reads invoices and where the data goes.
+function providerInfo() {
+  const provider = chosenProvider();
+  const configured = providerConfigured(provider);
+  const usesSarvam = provider !== "claude";
+  const sarvamConfirmed = process.env.SARVAM_DPA_CONFIRMED === "true";
+  const where = {
+    claude: "Anthropic (Claude API)",
+    sarvam: "Sarvam AI (Document Intelligence)",
+    sarvam_then_claude: "Sarvam AI first, then Anthropic (Claude API) when Sarvam's reading fails the checks",
+  }[provider];
+  const notes = [];
+  if (!configured) notes.push("Demo mode: no invoice is sent to an AI service.");
+  else notes.push(`Invoice images and PDF text are sent to ${where} for reading.`);
+  if (configured && usesSarvam) {
+    notes.push("Sarvam says it processes data on Microsoft Azure, Central India, and keeps inputs and outputs 30 days after last access unless retention is set to zero.");
+    if (!sarvamConfirmed) notes.push("Testing only: Sarvam's DPA and zero-retention setting are not confirmed yet. Do not use for client invoices.");
+  }
+  return { provider, configured, testingOnly: configured && usesSarvam && !sarvamConfirmed, where: configured ? where : null, notes };
 }
 
 function providerConfigured(name = chosenProvider()) {
@@ -208,7 +237,7 @@ async function readWithSarvam(file, { sarvam = sarvamProvider(), rotate = 0 }) {
     // Sarvam scores empty fields too; only a value that was actually read can be doubtful.
     const value = (path) => path.split(/[.[\]]+/).filter(Boolean).reduce((o, k) => (o == null ? undefined : o[k]), checked.invoice);
     checked.invoice.confidence = Object.fromEntries(Object.entries(checked.invoice.confidence).filter(([path]) => value(path) != null && value(path) !== ""));
-    return { invoice: checked.invoice, meta: { provider: "sarvam", pages: read.pages, partial: read.partial } };
+    return { invoice: withRules(checked.invoice), meta: { provider: "sarvam", pages: read.pages, partial: read.partial } };
   });
 }
 
@@ -237,7 +266,7 @@ async function readWithClaude(file, { provider = claudeProvider(), rotate = 0 })
         usage.calls++;
         const parsed = parseJsonReply(reply);
         const checked = parsed.error ? { ok: false, errors: [parsed.error] } : validateInvoiceJson(parsed.value);
-        if (checked.ok) return { invoice: checked.invoice, meta: { provider: "claude", usage } };
+        if (checked.ok) return { invoice: withRules(checked.invoice), meta: { provider: "claude", usage } };
         if (attempt === 1) throw extractError("INVOICE_LLM_BAD_JSON", `The AI reply did not match the invoice format twice (${checked.errors.slice(0, 3).join("; ")}).`);
         messages.push({ role: "assistant", content: reply });
         messages.push({ role: "user", content: `That JSON is not valid for the required shape: ${checked.errors.slice(0, 10).join("; ")}. Return the complete corrected JSON object only.` });
@@ -248,4 +277,4 @@ async function readWithClaude(file, { provider = claudeProvider(), rotate = 0 })
   }
 }
 
-export { chosenProvider, claudeProvider, extractInvoice, extractInvoiceDetailed, providerConfigured, SYSTEM_PROMPT };
+export { chosenProvider, claudeProvider, extractInvoice, extractInvoiceDetailed, providerConfigured, providerInfo, SYSTEM_PROMPT };

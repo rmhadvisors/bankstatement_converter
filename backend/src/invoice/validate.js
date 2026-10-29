@@ -115,9 +115,14 @@ function validateInvoice(invoice, { financialYear = null, today = new Date() } =
     add("review", "totals.taxableAmount", `Sum of lines ${fmt(linesSum)} vs ${linesCompareTo[0]} ${fmt(linesCompareTo[1])}`);
   }
 
-  // Incomplete: P.T.O. or missing totals
-  if (invoice.continuedOverleaf) add("incomplete", "continuedOverleaf", "Continued overleaf (P.T.O.) -- next page not included");
-  if (taxable === null && !has(t.grandTotal)) {
+  // Incomplete: missing totals. P.T.O. only counts when the totals are blank too (a photo often
+  // shows "P.T.O." from another sheet at its edge).
+  const totalsBlank = taxable === null && !has(t.grandTotal);
+  if (invoice.continuedOverleaf) {
+    if (totalsBlank) add("incomplete", "continuedOverleaf", "Continued overleaf (P.T.O.) -- next page not included");
+    else add("note", "continuedOverleaf", "Marked P.T.O., but the totals are on this page; treated as complete");
+  }
+  if (totalsBlank) {
     add("incomplete", "totals", `Totals section blank; sum of lines ${fmt(linesSum)} (computed only)`);
   } else if (!has(t.grandTotal)) {
     add("incomplete", "totals.grandTotal", "Grand total not written");
@@ -214,6 +219,7 @@ function validateInvoice(invoice, { financialYear = null, today = new Date() } =
     add("note", field, `Verify ${fieldLabel(field)}${value != null ? `: read as "${value}"` : ""} (low confidence)`);
   }
   for (const { field, reason } of invoice.unreadable ?? []) add("note", field ?? "", `Unreadable ${field ?? "value"}: ${reason ?? "no reason given"}`);
+  for (const message of invoice.derived ?? []) add("note", "derived", message);
 
   const status = reasons.some((r) => r.level === "incomplete")
     ? "INCOMPLETE"
