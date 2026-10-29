@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { CreditCard, Landmark } from "lucide-react";
+import { CreditCard, Landmark, ReceiptText } from "lucide-react";
 
 const tabs = [
   { to: "/dashboard", label: "Bank Statement", icon: Landmark },
   { to: "/credit-card", label: "Credit Card", icon: CreditCard },
+  { to: "/invoice", label: "Invoices / Receipts", icon: ReceiptText },
 ] as const;
 
 export function ConverterTabs() {

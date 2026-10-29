@@ -11,6 +11,13 @@ import process from "node:process";
 // and restarts the server -- dropping every in-memory job (the client then polls into a 404).
 import { convertPdfToExcelBuffer } from "./parsers/converter.js";
 import { convertCreditCardToExcelBuffer } from "./creditcard/ccConverter.js";
+import {
+  handleInvoiceConfig,
+  handleInvoiceConvertSubmit,
+  handleInvoiceExport,
+  handleInvoiceStatus,
+  handleInvoiceValidate,
+} from "./invoice/service.js";
 
 try {
   process.loadEnvFile();
@@ -473,6 +480,25 @@ const server = createServer(async (req, res) => {
     if (cardJobMatch && req.method === "GET") {
       await sendWebResponse(res, handleCreditCardStatus(cardJobMatch[1], res));
       return;
+    }
+
+    // Invoice / receipt converter (backend/src/invoice/service.js).
+    if (url.pathname.startsWith("/api/invoice/")) {
+      const invoiceJob = url.pathname.match(/^\/api\/invoice\/convert\/([^/]+)$/);
+      if (invoiceJob && req.method === "GET") return sendWebResponse(res, handleInvoiceStatus(invoiceJob[1]));
+      if (url.pathname === "/api/invoice/config" && req.method === "GET") return sendWebResponse(res, await handleInvoiceConfig());
+      const handler = {
+        "/api/invoice/convert": handleInvoiceConvertSubmit,
+        "/api/invoice/validate": handleInvoiceValidate,
+        "/api/invoice/export": handleInvoiceExport,
+      }[url.pathname];
+      if (handler && req.method === "POST") {
+        const webRequest = await nodeRequestToWebRequest(req);
+        return sendWebResponse(
+          res,
+          webRequest ? await handler(webRequest) : Response.json({ code: "FILE_TOO_LARGE", message: "Files must be 100 MB or smaller." }, { status: 413 }),
+        );
+      }
     }
 
     if (url.pathname.startsWith("/api/")) {

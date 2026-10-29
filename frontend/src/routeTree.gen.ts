@@ -9,10 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as InvoiceSettingsRouteImport } from './routes/invoice-settings'
+import { Route as InvoiceRouteImport } from './routes/invoice'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CreditCardRouteImport } from './routes/credit-card'
 import { Route as IndexRouteImport } from './routes/index'
 
+const InvoiceSettingsRoute = InvoiceSettingsRouteImport.update({
+  id: '/invoice-settings',
+  path: '/invoice-settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvoiceRoute = InvoiceRouteImport.update({
+  id: '/invoice',
+  path: '/invoice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -33,34 +45,67 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/credit-card': typeof CreditCardRoute
   '/dashboard': typeof DashboardRoute
+  '/invoice': typeof InvoiceRoute
+  '/invoice-settings': typeof InvoiceSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/credit-card': typeof CreditCardRoute
   '/dashboard': typeof DashboardRoute
+  '/invoice': typeof InvoiceRoute
+  '/invoice-settings': typeof InvoiceSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/credit-card': typeof CreditCardRoute
   '/dashboard': typeof DashboardRoute
+  '/invoice': typeof InvoiceRoute
+  '/invoice-settings': typeof InvoiceSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/credit-card' | '/dashboard'
+  fullPaths:
+    | '/'
+    | '/credit-card'
+    | '/dashboard'
+    | '/invoice'
+    | '/invoice-settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/credit-card' | '/dashboard'
-  id: '__root__' | '/' | '/credit-card' | '/dashboard'
+  to: '/' | '/credit-card' | '/dashboard' | '/invoice' | '/invoice-settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/credit-card'
+    | '/dashboard'
+    | '/invoice'
+    | '/invoice-settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreditCardRoute: typeof CreditCardRoute
   DashboardRoute: typeof DashboardRoute
+  InvoiceRoute: typeof InvoiceRoute
+  InvoiceSettingsRoute: typeof InvoiceSettingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/invoice-settings': {
+      id: '/invoice-settings'
+      path: '/invoice-settings'
+      fullPath: '/invoice-settings'
+      preLoaderRoute: typeof InvoiceSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invoice': {
+      id: '/invoice'
+      path: '/invoice'
+      fullPath: '/invoice'
+      preLoaderRoute: typeof InvoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -89,6 +134,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreditCardRoute: CreditCardRoute,
   DashboardRoute: DashboardRoute,
+  InvoiceRoute: InvoiceRoute,
+  InvoiceSettingsRoute: InvoiceSettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
