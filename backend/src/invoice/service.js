@@ -10,7 +10,7 @@ import { validateBatch } from "./validate.js";
 import { ENTRY_TYPES, guessEntryType, matchParty } from "./parties.js";
 import { buildTallyWorkbookBuffer } from "./tallyWorkbook.js";
 import { sniffType } from "./images.js";
-import { extractInvoice, providerConfigured, providerInfo } from "./extract.js";
+import { doubleCheckAllowed, extractInvoice, providerConfigured, providerInfo } from "./extract.js";
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -22,9 +22,9 @@ const sha256 = (buffer) => crypto.createHash("sha256").update(buffer).digest("he
 const json = (body, status = 200) => Response.json(body, { status });
 const invoiceError = (code, message, status = 400) => json({ code, message }, status);
 
-// AI reading (extract.js). Without INVOICE_LLM_API_KEY the page runs in demo mode instead; tests
-// can swap the extractor for a mock.
-let extractor = (upload) => extractInvoice(upload);
+// AI reading (extract.js). Without the chosen provider's key the page runs in demo mode instead;
+// tests can swap the extractor for a mock.
+let extractor = (upload, options) => extractInvoice(upload, options);
 function setInvoiceExtractor(fn) {
   extractor = fn;
 }
@@ -64,17 +64,20 @@ async function handleInvoiceConvertSubmit(request) {
     uploads.push({ name: file.name, buffer });
   }
 
+  // "Double-check handwritten bills" (settings page): honoured only when both providers are confirmed.
+  const doubleCheck = form.get("doubleCheck") === "true" && doubleCheckAllowed();
   const id = crypto.randomUUID();
-  const job = { mode: mode(), files: uploads.map((upload) => ({ name: upload.name, state: "queued" })), expiresAt: Date.now() + JOB_TTL_MS };
+  const job = { mode: mode(), doubleCheck, files: uploads.map((upload) => ({ name: upload.name, state: "queued" })), expiresAt: Date.now() + JOB_TTL_MS };
   jobs.set(id, job);
   setTimeout(() => jobs.delete(id), JOB_TTL_MS).unref();
   runInvoiceJob(job, uploads); // background; failures are recorded per file
   return json({ jobId: id, mode: job.mode }, 202);
 }
 
+// Files are read in parallel; each provider's queue in extract.js limits how many calls run at once.
 async function runInvoiceJob(job, uploads) {
   const samples = job.mode === "demo" ? await loadDemoSamples() : null;
-  for (const [index, upload] of uploads.entries()) {
+  await Promise.all(uploads.map(async (upload, index) => {
     const file = job.files[index];
     file.state = "reading";
     try {
@@ -83,7 +86,7 @@ async function runInvoiceJob(job, uploads) {
         if (!sample) throw Object.assign(new Error("Demo mode only reads the 4 sample invoices. AI reading is not connected yet."), { code: "NOT_A_DEMO_SAMPLE" });
         file.invoice = validateInvoiceJson(sample.invoice).invoice;
       } else {
-        file.invoice = await extractor(upload);
+        file.invoice = await extractor(upload, { doubleCheck: job.doubleCheck });
       }
       file.state = "done";
     } catch (error) {
@@ -93,7 +96,7 @@ async function runInvoiceJob(job, uploads) {
     } finally {
       upload.buffer = null; // nothing of the upload outlives its processing
     }
-  }
+  }));
 }
 
 function handleInvoiceStatus(jobId) {

@@ -26,15 +26,16 @@ async function jsonOrThrow<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export type ProviderInfo = { provider: string; configured: boolean; testingOnly: boolean; where: string | null; notes: string[] };
+export type ProviderInfo = { provider: string; configured: boolean; testingOnly: boolean; where: string | null; notes: string[]; doubleCheckAllowed?: boolean };
 
 export async function getInvoiceConfig(): Promise<{ mode: "demo" | "live"; provider: ProviderInfo; defaultParties: Party[] }> {
   return jsonOrThrow(await fetch(`${API_BASE_URL}/api/invoice/config`));
 }
 
 // Uploads the batch, then polls until every file is read; onProgress gets the per-file states.
-export async function convertInvoices(files: File[], onProgress: (files: JobFile[], mode: string) => void): Promise<JobFile[]> {
+export async function convertInvoices(files: File[], onProgress: (files: JobFile[], mode: string) => void, doubleCheck = false): Promise<JobFile[]> {
   const form = new FormData();
+  if (doubleCheck) form.append("doubleCheck", "true");
   for (const file of files) form.append("files", file, file.name);
   const { jobId } = await jsonOrThrow<{ jobId: string }>(await fetch(`${API_BASE_URL}/api/invoice/convert`, { method: "POST", body: form }));
   for (;;) {

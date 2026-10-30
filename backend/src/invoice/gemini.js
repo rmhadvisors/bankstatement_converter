@@ -7,7 +7,9 @@ import { INVOICE_SCHEMA } from "./schema.js";
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const TIMEOUT_MS = Number(process.env.INVOICE_LLM_TIMEOUT_MS) || 180_000;
-const MAX_HTTP_RETRIES = 2;
+const MAX_HTTP_RETRIES = 3;
+// Gemini's 429 body says how long to wait ("retryDelay": "12s").
+const retryDelayMs = (reply) => (parseFloat(reply?.error?.details?.find((d) => d.retryDelay)?.retryDelay) || 0) * 1000;
 
 const geminiError = (code, message) => Object.assign(new Error(message), { code });
 
@@ -18,7 +20,7 @@ function toGeminiSchema(schema) {
   if (schema.oneOf) return { type: "string", enum: schema.oneOf, nullable: true };
   if (Array.isArray(schema)) return { type: "array", items: toGeminiSchema(schema[0]) };
   if (schema["*"]) return { type: "array", items: { type: "object", properties: { field: { type: "string" }, level: { type: "string", enum: ["medium", "low"] } }, required: ["field", "level"] } };
-  const entries = Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals"].includes(key));
+  const entries = Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals", "crossCheck"].includes(key));
   return { type: "object", properties: Object.fromEntries(entries.map(([key, value]) => [key, toGeminiSchema(value)])), propertyOrdering: entries.map(([key]) => key) };
 }
 const GEMINI_SCHEMA = toGeminiSchema(INVOICE_SCHEMA);
@@ -44,7 +46,9 @@ const toParts = (content) =>
 function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.env.GEMINI_MODEL || DEFAULT_MODEL, fetchImpl = fetch } = {}) {
   return {
     name: `gemini:${model}`,
-    async complete({ system, messages }) {
+    // signal: the per-file deadline from extract.js (covers retries); else one call's timeout.
+    async complete({ system, messages, signal = AbortSignal.timeout(TIMEOUT_MS) }) {
+      const timedOut = () => geminiError("INVOICE_LLM_TIMEOUT", `Gemini did not finish within ${Math.round(TIMEOUT_MS / 1000)} s.`);
       if (!apiKey) throw geminiError("GEMINI_KEY_MISSING", "Gemini is not configured (GEMINI_API_KEY is not set).");
       const body = JSON.stringify({
         systemInstruction: { parts: [{ text: system + CONFIDENCE_NOTE }] },
@@ -58,18 +62,21 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
             method: "POST",
             headers: { "x-goog-api-key": apiKey, "content-type": "application/json" },
             body,
-            signal: AbortSignal.timeout(TIMEOUT_MS),
+            signal,
           });
         } catch (error) {
-          if (error?.name === "TimeoutError") throw geminiError("INVOICE_LLM_TIMEOUT", `Gemini did not answer within ${Math.round(TIMEOUT_MS / 1000)} s.`);
+          if (signal.aborted) throw timedOut();
           if (attempt < MAX_HTTP_RETRIES) continue;
           throw geminiError("INVOICE_LLM_UNREACHABLE", "Could not reach Gemini.");
         }
+        const reply = await response.json().catch(() => null);
+        // Rate limit / overload: wait as told (or back off) and retry, within the file's deadline.
         if ((response.status === 429 || response.status >= 500) && attempt < MAX_HTTP_RETRIES) {
-          await new Promise((resolve) => setTimeout(resolve, 2000 * 2 ** attempt));
+          const wait = Math.min(retryDelayMs(reply) || Number(response.headers.get("retry-after")) * 1000 || 2000 * 2 ** attempt, 60_000);
+          await new Promise((resolve) => setTimeout(resolve, wait));
+          if (signal.aborted) throw timedOut();
           continue;
         }
-        const reply = await response.json().catch(() => null);
         if (!response.ok) throw geminiError("INVOICE_LLM_FAILED", `Gemini error ${response.status}: ${reply?.error?.message ?? response.statusText}`);
         const candidate = reply?.candidates?.[0];
         if (!candidate || reply.promptFeedback?.blockReason || ["SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII"].includes(candidate.finishReason)) {

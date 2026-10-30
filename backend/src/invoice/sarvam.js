@@ -80,7 +80,7 @@ function toSarvamSchema(schema, key = "invoice") {
   if (Array.isArray(schema)) return { type: "array", description, items: toSarvamSchema(schema[0], "item") };
   const properties = Object.fromEntries(
     Object.entries(schema)
-      .filter(([k]) => !["confidence", "unreadable", "derived", "useComputedTotals"].includes(k))
+      .filter(([k]) => !["confidence", "unreadable", "derived", "useComputedTotals", "crossCheck"].includes(k))
       .map(([k, v]) => [k, toSarvamSchema(v, k)]),
   );
   return { type: "object", description: key === "item" ? "Line item row" : description, properties };

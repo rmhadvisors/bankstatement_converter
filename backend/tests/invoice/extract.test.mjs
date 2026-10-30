@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { createCanvas } from "@napi-rs/canvas";
 
-import { claudeProvider, extractInvoice, SYSTEM_PROMPT } from "../../src/invoice/extract.js";
+import { claudeProvider, extractInvoice, extractInvoiceDetailed, SYSTEM_PROMPT } from "../../src/invoice/extract.js";
 
 // The model call is mocked here; the live run is a separate, key-gated script.
 const photo = join(tmpdir(), `invoice-extract-${randomUUID()}.png`);
@@ -97,4 +97,56 @@ test("gemini provider: structured-output request, confidence list -> map, usage,
   const blocked = geminiProvider({ apiKey: "k", fetchImpl: async () => Response.json({ candidates: [{ finishReason: "SAFETY" }] }) });
   await assert.rejects(blocked.complete({ system: "s", messages: [{ role: "user", content: "x" }] }), { code: "INVOICE_LLM_REFUSED" });
   await assert.rejects(geminiProvider({ apiKey: "" }).complete({ system: "s", messages: [] }), { code: "GEMINI_KEY_MISSING" });
+});
+
+test("gemini default, safety labels, double-check notes, 3 calls in parallel, per-file timeout", async () => {
+  const { providerInfo, doubleCheckAllowed } = await import("../../src/invoice/extract.js");
+  const { validateInvoice } = await import("../../src/invoice/validate.js");
+  const { geminiProvider } = await import("../../src/invoice/gemini.js");
+  const saved = { ...process.env };
+  try {
+    for (const key of ["INVOICE_PROVIDER", "GEMINI_BILLING_CONFIRMED", "SARVAM_DPA_CONFIRMED", "SARVAM_API_KEY"]) delete process.env[key];
+    process.env.GEMINI_API_KEY = "k";
+    assert.equal(providerInfo().provider, "gemini");
+    assert.equal(providerInfo().testingOnly, true);
+    process.env.GEMINI_BILLING_CONFIRMED = "true";
+    assert.equal(providerInfo().testingOnly, false);
+    process.env.SARVAM_API_KEY = "s";
+    assert.equal(doubleCheckAllowed(), false, "Sarvam not confirmed");
+    process.env.SARVAM_DPA_CONFIRMED = "true";
+    assert.equal(doubleCheckAllowed(), true);
+    process.env.INVOICE_PROVIDER = "sarvam";
+    delete process.env.SARVAM_DPA_CONFIRMED;
+    assert.equal(providerInfo().testingOnly, true);
+  } finally {
+    process.env = saved;
+  }
+
+  // Double-check: fields read differently become one "please check" each, with both values.
+  const geminiReading = { invoiceNo: "101", totals: { grandTotal: 13517 }, lineItems: [{ qty: 15, amount: 900 }], payment: { reference: "0095" }, confidence: [{ field: "payment.reference", level: "low" }] };
+  const reply = { candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify(geminiReading) }] } }], usageMetadata: {} };
+  const gemini = geminiProvider({ apiKey: "k", fetchImpl: async () => Response.json(reply) });
+  const sarvam = { extract: async () => ({ invoice: { invoiceNo: "101", totals: { grandTotal: 13517 }, lineItems: [{ qty: 15, amount: 960 }], payment: { reference: "0895" }, confidence: {} }, pages: 1 }) };
+  const { invoice, meta } = await extractInvoiceDetailed({ name: "a.png", path: photo }, { providerName: "gemini", provider: gemini, sarvam, doubleCheck: true });
+  assert.deepEqual(invoice.crossCheck, [
+    { field: "payment.reference", gemini: "0095", sarvam: "0895" },
+    { field: "lineItems[0].amount", gemini: "900", sarvam: "960" },
+  ]);
+  assert.equal(meta.doubleCheck.disagreements, 2);
+  const notes = validateInvoice(invoice).reasons.map((r) => r.message).filter((m) => m.startsWith("Please check"));
+  assert.ok(notes.includes("Please check (readers disagree): payment reference: Gemini 0095, Sarvam 0895."), notes.join(" | "));
+  assert.equal(notes.filter((m) => /reference/.test(m)).length, 1, "one note per field (no extra hard-to-read note)");
+  const single = await extractInvoiceDetailed({ name: "a.png", path: photo }, { providerName: "gemini", provider: gemini, sarvam });
+  assert.deepEqual(single.invoice.crossCheck, [], "off by default");
+
+  // At most 3 Gemini calls at once.
+  let active = 0;
+  let peak = 0;
+  const slow = { name: "gemini:x", complete: async () => { peak = Math.max(peak, ++active); await new Promise((r) => setTimeout(r, 30)); active--; return { text: JSON.stringify({ invoiceNo: "1" }) }; } };
+  await Promise.all(Array.from({ length: 7 }, () => extractInvoiceDetailed({ name: "a.png", path: photo }, { providerName: "gemini", provider: slow })));
+  assert.equal(peak, 3);
+
+  // The per-file deadline reaches the provider's fetch.
+  const hanging = geminiProvider({ apiKey: "k", fetchImpl: (url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason))) });
+  await assert.rejects(hanging.complete({ system: "s", messages: [{ role: "user", content: "x" }], signal: AbortSignal.timeout(20) }), { code: "INVOICE_LLM_TIMEOUT" });
 });

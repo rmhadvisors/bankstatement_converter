@@ -33,6 +33,8 @@ const INVOICE_SCHEMA = {
   derived: [str],
   // Set only by the review screen's "Use computed totals" button (never by the model).
   useComputedTotals: "boolean",
+  // Set only by the double-check setting: important fields where Gemini and Sarvam read differently.
+  crossCheck: [{ field: str, gemini: str, sarvam: str }],
 };
 
 function check(schema, value, path, errors) {

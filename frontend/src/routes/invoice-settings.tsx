@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ConverterTabs } from "@/components/converter-tabs";
 import { ENTRY_TYPES, getInvoiceConfig, type EntryType, type Party, type ProviderInfo } from "@/lib/invoice-api";
-import { deleteParty, loadParties, readIncludePartySheet, saveParty, writeIncludePartySheet, type PartyStore } from "@/lib/invoice-parties";
+import { deleteParty, loadParties, readDoubleCheck, readIncludePartySheet, saveParty, writeDoubleCheck, writeIncludePartySheet, type PartyStore } from "@/lib/invoice-parties";
 import { InvoiceProviderNote } from "@/components/invoice-provider-note";
 
 export const Route = createFileRoute("/invoice-settings")({
@@ -23,6 +23,7 @@ function InvoiceSettingsPage() {
   const [draft, setDraft] = useState<Party>({ name: "", gstin: null, entryType: "STOCK" });
   const [provider, setProvider] = useState<ProviderInfo | null>(null);
   const [partySheet, setPartySheet] = useState(readIncludePartySheet);
+  const [doubleCheck, setDoubleCheck] = useState(readDoubleCheck);
 
   useEffect(() => {
     if (!loading && !user) nav({ to: "/" });
@@ -89,6 +90,27 @@ function InvoiceSettingsPage() {
               }}
             />
             Include a Party Settings sheet in the Excel export
+          </label>
+
+          <label className="mt-2 flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              disabled={!provider?.doubleCheckAllowed}
+              checked={doubleCheck && Boolean(provider?.doubleCheckAllowed)}
+              onChange={(e) => {
+                setDoubleCheck(e.target.checked);
+                writeDoubleCheck(e.target.checked);
+              }}
+            />
+            <span>
+              Double-check handwritten bills
+              <span className="block text-xs text-muted-foreground">
+                {provider?.doubleCheckAllowed
+                  ? "Photos and scans are read by both Gemini and Sarvam. Every field they read differently gets a \"please check\" note showing both values. Costs one extra Sarvam page per bill."
+                  : "Available when Gemini is the provider and both Gemini and Sarvam are marked confirmed."}
+              </span>
+            </span>
           </label>
 
           <table className="mt-4 w-full text-sm">

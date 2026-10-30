@@ -260,9 +260,16 @@ function validateInvoice(invoice, { financialYear = null, today = new Date() } =
     } else payment = { status: "paid", shortBy: 0 };
   }
 
+  // Two readers disagree (double-check setting): one note per field, with both readings.
+  const crossChecked = new Set();
+  for (const { field, gemini, sarvam } of invoice.crossCheck ?? []) {
+    crossChecked.add(field);
+    add("note", field, `Please check (readers disagree): ${fieldLabel(field)}: Gemini ${gemini ?? "blank"}, Sarvam ${sarvam ?? "blank"}.`);
+  }
+
   // Model-reported doubts
   for (const [field, level] of Object.entries(invoice.confidence ?? {})) {
-    if (level !== "low") continue;
+    if (level !== "low" || crossChecked.has(field)) continue;
     const label = checkLabel(invoice, field);
     if (label) add("note", field, `Please check (hard to read): ${label}.`);
   }

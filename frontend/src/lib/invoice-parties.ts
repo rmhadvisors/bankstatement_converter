@@ -30,6 +30,24 @@ export function writeIncludePartySheet(on: boolean) {
   }
 }
 
+// Reading option: "Double-check handwritten bills" (off by default). Per browser; the server only
+// honours it when both providers are confirmed.
+const DOUBLE_CHECK_KEY = "invoice-read:double-check";
+export function readDoubleCheck(): boolean {
+  try {
+    return window.localStorage.getItem(DOUBLE_CHECK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function writeDoubleCheck(on: boolean) {
+  try {
+    window.localStorage.setItem(DOUBLE_CHECK_KEY, on ? "1" : "0");
+  } catch {
+    // Storage blocked: the default (off) applies.
+  }
+}
+
 function readLocal(userId: string): Party[] | null {
   try {
     const saved = window.localStorage.getItem(localKey(userId));

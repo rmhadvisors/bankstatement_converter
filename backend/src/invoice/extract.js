@@ -20,6 +20,21 @@ const withRules = (invoice) => {
   return ruled;
 };
 
+// Double-check: important fields (same set as the "please check" notes) where two readings differ.
+// -> [{ field, gemini, sarvam }], values as text (null = blank).
+const CROSS_FIELDS = ["supplier.gstin", "buyer.gstin", "invoiceNo", "invoiceDate", "totals.taxableAmount", "totals.cgst", "totals.sgst", "totals.igst", "totals.roundOff", "totals.grandTotal", "payment.amount", "payment.reference", "payment.date"];
+const CROSS_LINE_FIELDS = ["qty", "rate", "amount", "hsnSac", "gstRate"];
+function crossCheck(gemini, sarvam) {
+  const get = (obj, path) => path.split(/[.[\]]+/).filter(Boolean).reduce((o, k) => (o == null ? undefined : o[k]), obj) ?? null;
+  const norm = (v) => (v === null || v === "" ? null : typeof v === "number" ? Math.round(v * 100) : String(v).replace(/[\s.,/-]+/g, "").toUpperCase());
+  const lines = Math.max(gemini.lineItems?.length ?? 0, sarvam.lineItems?.length ?? 0);
+  const paths = [...CROSS_FIELDS, ...Array.from({ length: lines }, (_, i) => CROSS_LINE_FIELDS.map((f) => `lineItems[${i}].${f}`)).flat()];
+  return paths
+    .map((field) => ({ field, gemini: get(gemini, field), sarvam: get(sarvam, field) }))
+    .filter((d) => norm(d.gemini) !== norm(d.sarvam))
+    .map((d) => ({ field: d.field, gemini: d.gemini === null ? null : String(d.gemini), sarvam: d.sarvam === null ? null : String(d.sarvam) }));
+}
+
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 const API_URL = "https://api.anthropic.com/v1/messages";
 const TIMEOUT_MS = Number(process.env.INVOICE_LLM_TIMEOUT_MS) || 180_000;
@@ -34,7 +49,7 @@ function skeleton(schema) {
   if (schema.oneOf) return `one of ${schema.oneOf.map((v) => JSON.stringify(v)).join(" | ")} or null`;
   if (Array.isArray(schema)) return [skeleton(schema[0])];
   if (schema["*"]) return { "<field path>": "medium | low" };
-  return Object.fromEntries(Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals"].includes(key)).map(([key, value]) => [key, skeleton(value)]));
+  return Object.fromEntries(Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals", "crossCheck"].includes(key)).map(([key, value]) => [key, skeleton(value)]));
 }
 
 const SYSTEM_PROMPT = `You transcribe Indian GST invoices, bills and receipts (printed or handwritten, often phone photos of carbon copies with stamps, signatures and notes) into JSON for an accountant. The accountant re-checks every number in code, so your only job is to copy exactly what is written.
@@ -63,7 +78,7 @@ ${JSON.stringify(skeleton(INVOICE_SCHEMA), null, 1)}`;
 function claudeProvider({ apiKey = process.env.INVOICE_LLM_API_KEY, model = process.env.INVOICE_LLM_MODEL || DEFAULT_MODEL, fetchImpl = fetch } = {}) {
   return {
     name: `claude:${model}`,
-    async complete({ system, messages }) {
+    async complete({ system, messages, signal = AbortSignal.timeout(TIMEOUT_MS) }) {
       if (!apiKey) throw extractError("INVOICE_KEY_MISSING", "AI reading is not configured (INVOICE_LLM_API_KEY is not set).");
       for (let attempt = 0; ; attempt++) {
         let response;
@@ -78,7 +93,7 @@ function claudeProvider({ apiKey = process.env.INVOICE_LLM_API_KEY, model = proc
               "content-type": "application/json",
             },
             body: JSON.stringify({ model, max_tokens: 16000, system, messages, fallbacks: "default" }),
-            signal: AbortSignal.timeout(TIMEOUT_MS),
+            signal,
           });
         } catch (error) {
           if (error?.name === "TimeoutError") throw extractError("INVOICE_LLM_TIMEOUT", `The AI service did not answer within ${Math.round(TIMEOUT_MS / 1000)} s.`);
@@ -104,19 +119,24 @@ function claudeProvider({ apiKey = process.env.INVOICE_LLM_API_KEY, model = proc
   };
 }
 
-// ---- queue: at most CONCURRENCY model calls at a time ----
-let active = 0;
-const waiting = [];
-async function queued(task) {
-  if (active >= CONCURRENCY) await new Promise((resolve) => waiting.push(resolve));
-  active++;
-  try {
-    return await task();
-  } finally {
-    active--;
-    waiting.shift()?.();
-  }
+// ---- queues: at most `limit` model calls at a time per service ----
+function makeQueue(limit) {
+  let active = 0;
+  const waiting = [];
+  return async (task) => {
+    if (active >= limit) await new Promise((resolve) => waiting.push(resolve));
+    active++;
+    try {
+      return await task();
+    } finally {
+      active--;
+      waiting.shift()?.();
+    }
+  };
 }
+const queued = makeQueue(CONCURRENCY);
+// Gemini: 3 files in parallel by default; 429s wait as Gemini says (gemini.js).
+const queuedGemini = makeQueue(Number(process.env.GEMINI_CONCURRENCY) || 3);
 
 // Sarvam: one job at a time (10 requests/minute per key, polls included).
 let sarvamChain = Promise.resolve();
@@ -153,13 +173,22 @@ async function extractInvoice(file, options = {}) {
   return (await extractInvoiceDetailed(file, options)).invoice;
 }
 
-// Which reader: INVOICE_PROVIDER = claude | gemini | sarvam | sarvam_then_claude; unset -> whichever key is set
-// (Claude if both). Both keys are optional: without one, the converter runs in demo mode.
-// Sarvam is used only when INVOICE_PROVIDER names it explicitly (testing, until its DPA and
-// zero-retention setting are confirmed): a SARVAM_API_KEY alone never sends invoices there.
+// Which reader: INVOICE_PROVIDER = gemini (default) | claude | sarvam | sarvam_then_claude. Keys are
+// optional: without the chosen provider's key, the converter runs in demo mode.
+// Sarvam is used only when INVOICE_PROVIDER names it explicitly: a SARVAM_API_KEY alone never sends
+// invoices there.
 function chosenProvider() {
   const wanted = process.env.INVOICE_PROVIDER;
-  return ["claude", "gemini", "sarvam", "sarvam_then_claude"].includes(wanted) ? wanted : "claude";
+  return ["claude", "gemini", "sarvam", "sarvam_then_claude"].includes(wanted) ? wanted : "gemini";
+}
+
+// Data terms confirmed by the user: Gemini key is billing-enabled; Sarvam DPA + zero retention.
+const geminiConfirmed = () => process.env.GEMINI_BILLING_CONFIRMED === "true";
+const sarvamConfirmed = () => process.env.SARVAM_DPA_CONFIRMED === "true";
+
+// "Double-check handwritten bills": Gemini + Sarvam on every photo/scan. Only with both confirmed.
+function doubleCheckAllowed() {
+  return chosenProvider() === "gemini" && providerConfigured("gemini") && providerConfigured("sarvam") && geminiConfirmed() && sarvamConfirmed();
 }
 
 // What the pages show: which service reads invoices and where the data goes.
@@ -167,7 +196,7 @@ function providerInfo() {
   const provider = chosenProvider();
   const configured = providerConfigured(provider);
   const usesSarvam = provider.startsWith("sarvam");
-  const sarvamConfirmed = process.env.SARVAM_DPA_CONFIRMED === "true";
+  const testingOnly = configured && (usesSarvam ? !sarvamConfirmed() : provider === "gemini" && !geminiConfirmed());
   const where = {
     claude: "Anthropic (Claude API)",
     gemini: "Google (Gemini API)",
@@ -177,12 +206,15 @@ function providerInfo() {
   const notes = [];
   if (!configured) notes.push("Demo mode: no invoice is sent to an AI service.");
   else notes.push(`Invoice images and PDF text are sent to ${where} for reading.`);
-  if (configured && provider === "gemini") notes.push("With a billing-enabled key, Google does not use prompts or responses to improve its products; it logs them for a limited period only to detect misuse.");
+  if (configured && provider === "gemini") {
+    notes.push("With a billing-enabled key, Google does not use prompts or responses to improve its products; it logs them for a limited period only to detect misuse.");
+    if (testingOnly) notes.push("Testing only: the Gemini key is not confirmed as billing-enabled yet (free-tier data is used by Google). Do not use for client invoices.");
+  }
   if (configured && usesSarvam) {
     notes.push("Sarvam says it processes data on Microsoft Azure, Central India, and keeps inputs and outputs 30 days after last access unless retention is set to zero.");
-    if (!sarvamConfirmed) notes.push("Testing only: Sarvam's DPA and zero-retention setting are not confirmed yet. Do not use for client invoices.");
+    if (testingOnly) notes.push("Testing only: Sarvam's DPA and zero-retention setting are not confirmed yet. Do not use for client invoices.");
   }
-  return { provider, configured, testingOnly: configured && usesSarvam && !sarvamConfirmed, where: configured ? where : null, notes };
+  return { provider, configured, testingOnly, where: configured ? where : null, notes, doubleCheckAllowed: doubleCheckAllowed() };
 }
 
 function providerConfigured(name = chosenProvider()) {
@@ -193,11 +225,23 @@ function providerConfigured(name = chosenProvider()) {
 }
 
 // -> { invoice, meta: { provider, pages?, usage?, fallback?, fallbackReason?, fallbackError? } }
-async function extractInvoiceDetailed(file, { provider, sarvam, providerName = provider ? "claude" : chosenProvider(), rotate = 0 } = {}) {
+// doubleCheck (Gemini only, when doubleCheckAllowed()): photos/scans are also read by Sarvam, and
+// every important field the two read differently becomes a "please check" note with both values.
+async function extractInvoiceDetailed(file, { provider, sarvam, providerName = provider ? "claude" : chosenProvider(), rotate = 0, doubleCheck = false } = {}) {
   if (providerName === "sarvam") return readWithSarvam(file, { sarvam, rotate });
   if (providerName === "claude") return readWithClaude(file, { provider, rotate });
   // Gemini: same prompt, schema check + retry, rules and checks as Claude.
-  if (providerName === "gemini") return readWithClaude(file, { provider: provider ?? geminiProvider(), rotate });
+  if (providerName === "gemini") {
+    const read = await readWithClaude(file, { provider: provider ?? geminiProvider(), rotate, queue: queuedGemini });
+    if (!doubleCheck || read.meta.kind !== "images" || !(sarvam || doubleCheckAllowed())) return read;
+    const second = await readWithSarvam(file, { sarvam, rotate }).catch((error) => ({ error }));
+    if (second.error) {
+      read.invoice.derived.push("Double-check skipped: Sarvam could not read this file.");
+      return { ...read, meta: { ...read.meta, doubleCheck: { error: second.error.code ?? "error" } } };
+    }
+    read.invoice.crossCheck = crossCheck(read.invoice, second.invoice);
+    return { ...read, meta: { ...read.meta, doubleCheck: { sarvamPages: second.meta.pages, disagreements: read.invoice.crossCheck.length } } };
+  }
   // sarvam_then_claude: Sarvam first; Claude only when the checks fail or a field is low-confidence.
   const first = await readWithSarvam(file, { sarvam, rotate }).catch((error) => ({ error }));
   let why = null;
@@ -247,7 +291,7 @@ async function readWithSarvam(file, { sarvam = sarvamProvider(), rotate = 0 }) {
   });
 }
 
-async function readWithClaude(file, { provider = claudeProvider(), rotate = 0 }) {
+async function readWithClaude(file, { provider = claudeProvider(), rotate = 0, queue = queued }) {
   let path = file.path;
   let cleanup = null;
   if (!path) {
@@ -259,10 +303,12 @@ async function readWithClaude(file, { provider = claudeProvider(), rotate = 0 })
     const prepared = await prepareInvoiceFile(path, { rotate });
     const messages = [{ role: "user", content: await contentFor(prepared, file.name) }];
     const usage = { model: null, inputTokens: 0, outputTokens: 0, calls: 0 };
-    return await queued(async () => {
+    return await queue(async () => {
+      // One deadline per file, from when its turn in the queue starts (covers retries).
+      const signal = AbortSignal.timeout(TIMEOUT_MS);
       // One retry when the reply isn't schema-valid JSON, telling the model what was wrong.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const answer = await provider.complete({ system: SYSTEM_PROMPT, messages });
+        const answer = await provider.complete({ system: SYSTEM_PROMPT, messages, signal });
         const reply = typeof answer === "string" ? answer : answer.text;
         if (answer?.usage) {
           usage.model = answer.usage.model;
@@ -272,7 +318,7 @@ async function readWithClaude(file, { provider = claudeProvider(), rotate = 0 })
         usage.calls++;
         const parsed = parseJsonReply(reply);
         const checked = parsed.error ? { ok: false, errors: [parsed.error] } : validateInvoiceJson(parsed.value);
-        if (checked.ok) return { invoice: withRules(checked.invoice), meta: { provider: provider.name?.split(":")[0] ?? "claude", usage } };
+        if (checked.ok) return { invoice: withRules(checked.invoice), meta: { provider: provider.name?.split(":")[0] ?? "claude", usage, kind: prepared.kind } };
         if (attempt === 1) throw extractError("INVOICE_LLM_BAD_JSON", `The AI reply did not match the invoice format twice (${checked.errors.slice(0, 3).join("; ")}).`);
         messages.push({ role: "assistant", content: reply });
         messages.push({ role: "user", content: `That JSON is not valid for the required shape: ${checked.errors.slice(0, 10).join("; ")}. Return the complete corrected JSON object only.` });
@@ -283,4 +329,4 @@ async function readWithClaude(file, { provider = claudeProvider(), rotate = 0 })
   }
 }
 
-export { chosenProvider, claudeProvider, extractInvoice, extractInvoiceDetailed, providerConfigured, providerInfo, SYSTEM_PROMPT };
+export { chosenProvider, claudeProvider, crossCheck, doubleCheckAllowed, extractInvoice, extractInvoiceDetailed, providerConfigured, providerInfo, SYSTEM_PROMPT };

@@ -18,7 +18,7 @@ import {
   type Party,
   type ProviderInfo,
 } from "@/lib/invoice-api";
-import { loadParties, readIncludePartySheet, saveParty, type PartyStore } from "@/lib/invoice-parties";
+import { loadParties, readDoubleCheck, readIncludePartySheet, saveParty, type PartyStore } from "@/lib/invoice-parties";
 import { InvoiceProviderNote } from "@/components/invoice-provider-note";
 
 export const Route = createFileRoute("/invoice")({
@@ -167,6 +167,7 @@ function InvoicePage() {
             }),
           );
         },
+        readDoubleCheck(),
       );
       const next = itemsRef.current.map((item) => {
         const index = pending.findIndex((p) => p.id === item.id);
@@ -187,7 +188,12 @@ function InvoicePage() {
 
   // Edits re-run every check (debounced): the written value is what's validated and exported.
   function edit(id: string, path: string, value: unknown) {
-    const next = itemsRef.current.map((item) => (item.id === id && item.invoice ? { ...item, invoice: setPath(item.invoice, path, value) } : item));
+    // A corrected field no longer needs its "readers disagree" note.
+    const next = itemsRef.current.map((item) =>
+      item.id === id && item.invoice
+        ? { ...item, invoice: { ...setPath(item.invoice, path, value), crossCheck: (item.invoice.crossCheck ?? []).filter((c: { field: string }) => c.field !== path) } }
+        : item,
+    );
     itemsRef.current = next;
     setItems(next);
     clearTimeout(validateTimer.current);
