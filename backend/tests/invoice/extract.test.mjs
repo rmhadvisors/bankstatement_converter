@@ -67,3 +67,34 @@ test("claude provider: request shape, retry on 429, refusal and missing key", as
   await assert.rejects(refusing.complete({ system: "s", messages: [] }), { code: "INVOICE_LLM_REFUSED" });
   await assert.rejects(claudeProvider({ apiKey: "" }).complete({ system: "s", messages: [] }), { code: "INVOICE_KEY_MISSING" });
 });
+
+test("gemini provider: structured-output request, confidence list -> map, usage, same checks as Claude", async () => {
+  const { geminiProvider, GEMINI_SCHEMA } = await import("../../src/invoice/gemini.js");
+  const requests = [];
+  const answer = { invoiceNo: "7", totals: { grandTotal: 118 }, confidence: [{ field: "invoiceNo", level: "low" }] };
+  const fetchImpl = async (url, init) => {
+    requests.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+    return Response.json({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify(answer) }] } }], usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 200, thoughtsTokenCount: 300 }, modelVersion: "gemini-test" });
+  };
+  const provider = geminiProvider({ apiKey: "k", model: "gemini-test", fetchImpl });
+  const invoice = await extractInvoice({ name: "a.png", path: photo }, { providerName: "gemini", provider });
+  assert.equal(invoice.invoiceNo, "7");
+  assert.deepEqual(invoice.confidence, { invoiceNo: "low" });
+
+  const [request] = requests;
+  assert.match(request.url, /\/models\/gemini-test:generateContent$/);
+  assert.equal(request.headers["x-goog-api-key"], "k");
+  assert.equal(request.body.generationConfig.responseMimeType, "application/json");
+  assert.deepEqual(request.body.generationConfig.responseSchema, JSON.parse(JSON.stringify(GEMINI_SCHEMA)));
+  assert.equal(GEMINI_SCHEMA.properties.useComputedTotals, undefined);
+  assert.deepEqual(GEMINI_SCHEMA.properties.totals.properties.grandTotal, { type: "number", nullable: true });
+  assert.equal(request.body.contents[0].parts[0].inlineData.mimeType, "image/jpeg");
+  assert.equal(request.body.systemInstruction.parts[0].text.startsWith(SYSTEM_PROMPT), true);
+
+  const direct = await provider.complete({ system: "s", messages: [{ role: "user", content: "x" }] });
+  assert.deepEqual(direct.usage, { model: "gemini-test", inputTokens: 1000, outputTokens: 500 });
+
+  const blocked = geminiProvider({ apiKey: "k", fetchImpl: async () => Response.json({ candidates: [{ finishReason: "SAFETY" }] }) });
+  await assert.rejects(blocked.complete({ system: "s", messages: [{ role: "user", content: "x" }] }), { code: "INVOICE_LLM_REFUSED" });
+  await assert.rejects(geminiProvider({ apiKey: "" }).complete({ system: "s", messages: [] }), { code: "GEMINI_KEY_MISSING" });
+});

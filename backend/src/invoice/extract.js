@@ -9,6 +9,7 @@ import { prepareInvoiceFile } from "./images.js";
 import { readFile } from "node:fs/promises";
 import { INVOICE_SCHEMA, validateInvoiceJson } from "./schema.js";
 import { sarvamProvider } from "./sarvam.js";
+import { geminiProvider } from "./gemini.js";
 import { validateInvoice } from "./validate.js";
 import { applyReadingRules } from "./rules.js";
 
@@ -152,29 +153,31 @@ async function extractInvoice(file, options = {}) {
   return (await extractInvoiceDetailed(file, options)).invoice;
 }
 
-// Which reader: INVOICE_PROVIDER = claude | sarvam | sarvam_then_claude; unset -> whichever key is set
+// Which reader: INVOICE_PROVIDER = claude | gemini | sarvam | sarvam_then_claude; unset -> whichever key is set
 // (Claude if both). Both keys are optional: without one, the converter runs in demo mode.
 // Sarvam is used only when INVOICE_PROVIDER names it explicitly (testing, until its DPA and
 // zero-retention setting are confirmed): a SARVAM_API_KEY alone never sends invoices there.
 function chosenProvider() {
   const wanted = process.env.INVOICE_PROVIDER;
-  return ["claude", "sarvam", "sarvam_then_claude"].includes(wanted) ? wanted : "claude";
+  return ["claude", "gemini", "sarvam", "sarvam_then_claude"].includes(wanted) ? wanted : "claude";
 }
 
 // What the pages show: which service reads invoices and where the data goes.
 function providerInfo() {
   const provider = chosenProvider();
   const configured = providerConfigured(provider);
-  const usesSarvam = provider !== "claude";
+  const usesSarvam = provider.startsWith("sarvam");
   const sarvamConfirmed = process.env.SARVAM_DPA_CONFIRMED === "true";
   const where = {
     claude: "Anthropic (Claude API)",
+    gemini: "Google (Gemini API)",
     sarvam: "Sarvam AI (Document Intelligence)",
     sarvam_then_claude: "Sarvam AI first, then Anthropic (Claude API) when Sarvam's reading fails the checks",
   }[provider];
   const notes = [];
   if (!configured) notes.push("Demo mode: no invoice is sent to an AI service.");
   else notes.push(`Invoice images and PDF text are sent to ${where} for reading.`);
+  if (configured && provider === "gemini") notes.push("With a billing-enabled key, Google does not use prompts or responses to improve its products; it logs them for a limited period only to detect misuse.");
   if (configured && usesSarvam) {
     notes.push("Sarvam says it processes data on Microsoft Azure, Central India, and keeps inputs and outputs 30 days after last access unless retention is set to zero.");
     if (!sarvamConfirmed) notes.push("Testing only: Sarvam's DPA and zero-retention setting are not confirmed yet. Do not use for client invoices.");
@@ -184,6 +187,7 @@ function providerInfo() {
 
 function providerConfigured(name = chosenProvider()) {
   if (name === "claude") return Boolean(process.env.INVOICE_LLM_API_KEY);
+  if (name === "gemini") return Boolean(process.env.GEMINI_API_KEY);
   if (name === "sarvam") return Boolean(process.env.SARVAM_API_KEY);
   return Boolean(process.env.SARVAM_API_KEY && process.env.INVOICE_LLM_API_KEY);
 }
@@ -192,6 +196,8 @@ function providerConfigured(name = chosenProvider()) {
 async function extractInvoiceDetailed(file, { provider, sarvam, providerName = provider ? "claude" : chosenProvider(), rotate = 0 } = {}) {
   if (providerName === "sarvam") return readWithSarvam(file, { sarvam, rotate });
   if (providerName === "claude") return readWithClaude(file, { provider, rotate });
+  // Gemini: same prompt, schema check + retry, rules and checks as Claude.
+  if (providerName === "gemini") return readWithClaude(file, { provider: provider ?? geminiProvider(), rotate });
   // sarvam_then_claude: Sarvam first; Claude only when the checks fail or a field is low-confidence.
   const first = await readWithSarvam(file, { sarvam, rotate }).catch((error) => ({ error }));
   let why = null;
@@ -266,7 +272,7 @@ async function readWithClaude(file, { provider = claudeProvider(), rotate = 0 })
         usage.calls++;
         const parsed = parseJsonReply(reply);
         const checked = parsed.error ? { ok: false, errors: [parsed.error] } : validateInvoiceJson(parsed.value);
-        if (checked.ok) return { invoice: withRules(checked.invoice), meta: { provider: "claude", usage } };
+        if (checked.ok) return { invoice: withRules(checked.invoice), meta: { provider: provider.name?.split(":")[0] ?? "claude", usage } };
         if (attempt === 1) throw extractError("INVOICE_LLM_BAD_JSON", `The AI reply did not match the invoice format twice (${checked.errors.slice(0, 3).join("; ")}).`);
         messages.push({ role: "assistant", content: reply });
         messages.push({ role: "user", content: `That JSON is not valid for the required shape: ${checked.errors.slice(0, 10).join("; ")}. Return the complete corrected JSON object only.` });

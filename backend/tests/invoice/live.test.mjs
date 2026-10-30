@@ -15,10 +15,12 @@ const demoDir = join(invoicesDir, "demo");
 const SAMPLES = ["invoice1", "invoice2", "invoice3", "invoice4"];
 const ready = SAMPLES.every((name) => existsSync(join(demoDir, `${name}.json`)));
 const PROVIDERS = (process.env.INVOICE_LIVE_PROVIDERS || "claude").split(",").map((p) => p.trim()).filter(Boolean);
-const KEYS = { claude: ["INVOICE_LLM_API_KEY"], sarvam: ["SARVAM_API_KEY"], sarvam_then_claude: ["SARVAM_API_KEY", "INVOICE_LLM_API_KEY"] };
+const KEYS = { claude: ["INVOICE_LLM_API_KEY"], gemini: ["GEMINI_API_KEY"], sarvam: ["SARVAM_API_KEY"], sarvam_then_claude: ["SARVAM_API_KEY", "INVOICE_LLM_API_KEY"] };
 // Prices: Sarvam Document Extraction ₹1.00/page (ex GST); Claude per million tokens (input, output).
 const SARVAM_INR_PER_PAGE = 1;
 const CLAUDE_USD_PER_MTOK = { "claude-haiku-5-5": [0.1, 0.5], "claude-sonnet-5-5": [2, 10], "claude-opus-5-5": [4, 20] };
+// Gemini paid tier (ai.google.dev/gemini-api/docs/pricing, 30/10/2026); 3.8 Flash doubles from 01/01/2027.
+const GEMINI_USD_PER_MTOK = { "gemini-3.8-flash": [0.75, 3.75], "gemini-3.5-flash-lite": [0.3, 2.5] };
 
 const FIELDS = ["supplier.name", "supplier.gstin", "buyer.name", "buyer.gstin", "invoiceNo", "invoiceDate", "placeOfSupply", "continuedOverleaf"];
 const LINE_FIELDS = ["description", "hsnSac", "qty", "unit", "rate", "amount", "gstRate"];
@@ -54,9 +56,9 @@ function cost(meta) {
     parts.push(`Sarvam ${pages} page(s) = ₹${(pages * SARVAM_INR_PER_PAGE).toFixed(2)}`);
   }
   if (meta.usage) {
-    const [inPrice, outPrice] = CLAUDE_USD_PER_MTOK[meta.usage.model?.replace(/-\d{8}$/, "")] ?? [NaN, NaN];
+    const [inPrice, outPrice] = { ...CLAUDE_USD_PER_MTOK, ...GEMINI_USD_PER_MTOK }[meta.usage.model?.replace(/-\d{8}$/, "")] ?? [NaN, NaN];
     usd += (meta.usage.inputTokens * inPrice + meta.usage.outputTokens * outPrice) / 1e6;
-    parts.push(`Claude ${meta.usage.model} ${meta.usage.inputTokens} in + ${meta.usage.outputTokens} out tokens = $${usd.toFixed(4)}`);
+    parts.push(`${meta.provider === "gemini" ? "Gemini" : "Claude"} ${meta.usage.model} ${meta.usage.inputTokens} in + ${meta.usage.outputTokens} out tokens = $${usd.toFixed(4)}`);
   }
   return { text: parts.join(" + ") || "n/a", inr, usd };
 }
@@ -65,7 +67,7 @@ for (const providerName of PROVIDERS) {
   const missing = (KEYS[providerName] ?? ["unknown provider"]).filter((key) => !process.env[key]);
   const skip = process.env.INVOICE_LIVE_TEST !== "1" ? "set INVOICE_LIVE_TEST=1 to run (uses paid AI services)" : !ready ? "needs fixtures/invoices/demo/*.json" : missing.length ? `needs ${missing.join(", ")}` : false;
   test(`live reading (${providerName}) of the 4 sample invoices vs the hand-typed values`, { skip, timeout: 30 * 60 * 1000 }, async () => {
-    const report = [`# Provider: ${providerName}${providerName !== "sarvam" ? ` (Claude model ${process.env.INVOICE_LLM_MODEL || "claude-sonnet-5-5"})` : ""}`];
+    const report = [`# Provider: ${providerName}${providerName === "gemini" ? ` (model ${process.env.GEMINI_MODEL || "gemini-3.8-flash"})` : providerName !== "sarvam" ? ` (Claude model ${process.env.INVOICE_LLM_MODEL || "claude-sonnet-5-5"})` : ""}`];
     const summary = [];
     const extracted = [];
     for (const name of SAMPLES) {
