@@ -1,5 +1,5 @@
 // Client's Tally workbook: GST Entries, TCS Entries, Import, Stock Items, Review, Party Settings.
-// Written values only: an amount the invoice doesn't show is left blank, never computed in.
+// GST Entries rows are built per GST rate from the lines; other amounts are written values only.
 import ExcelJS from "exceljs";
 import { parseDmy } from "./validate.js";
 
@@ -91,67 +91,71 @@ function stockText(lines) {
     .join("\n");
 }
 
-// Rows for "GST Entries": one per GST rate. Single-rate invoice: the written totals. Multi-rate:
-// written line values per rate, and taxes only where the lines themselves show them.
+// Rows for "GST Entries": one per line GST rate, built from the lines (tax = taxable x rate, never
+// copied from elsewhere). Lines without a rate get their own row with the tax cells blank.
+// A single-rate invoice with printed totals keeps the printed figures. yellow: row needs a look.
 function gstRows(entry, gstLines) {
   const { invoice, result } = entry;
   const t = invoice.totals ?? {};
   const intra = result.computed.intraState;
-  // Only rates written on the lines split an invoice; a line without a rate is "rate unknown" and
-  // stays in the invoice's row (validate.js notes it).
-  const rates = [...new Set(gstLines.map((line) => line.gstRate).filter(has))];
-  const notes = [];
   const totalsBlank = result.computed.taxable === null && !has(t.grandTotal);
+  const notes = [];
+  const sno = (line) => line.sno ?? gstLines.indexOf(line) + 1;
 
-  // INCOMPLETE (totals blank): amounts stay blank unless "Use computed totals" was chosen.
-  if (totalsBlank) {
-    const use = invoice.useComputedTotals === true;
-    const tax = use && rates.length === 1 ? round2((result.computed.linesSum * rates[0]) / 100) : null;
-    return {
-      rows: [{
-        rate: rates.length === 1 ? rates[0] : null,
-        lines: gstLines,
-        taxable: use ? result.computed.linesSum : null,
-        igst: tax === null ? null : intra === false ? tax : 0,
-        cgst: tax === null ? null : intra === false ? 0 : round2(tax / 2),
-        sgst: tax === null ? null : intra === false ? 0 : round2(tax / 2),
-      }],
-      notes: use ? ["Amounts are the computed totals chosen on the review screen, not written on the invoice."] : [],
-    };
+  // "Use computed totals": unrated lines take the rate of the others, only if the rated lines all agree.
+  const ratedRates = [...new Set(gstLines.map((line) => line.gstRate).filter(has))];
+  const assumed = invoice.useComputedTotals === true && ratedRates.length === 1 ? ratedRates[0] : null;
+  const rateOf = (line) => (has(line.gstRate) ? line.gstRate : assumed);
+  for (const line of gstLines) {
+    if (!has(line.gstRate) && assumed !== null) notes.push(`Line ${sno(line)}: no GST rate written; ${assumed}% (the rate of the other lines) used because "Use computed totals" was chosen.`);
   }
 
-  if (rates.length <= 1) {
-    const taxable = result.computed.taxable;
+  const groups = new Map(); // rate (null = none written) -> lines, in order of first appearance, unrated last
+  for (const line of gstLines.filter((l) => rateOf(l) !== null)) groups.set(rateOf(line), [...(groups.get(rateOf(line)) ?? []), line]);
+  const unrated = gstLines.filter((l) => rateOf(l) === null);
+  if (unrated.length) groups.set(null, unrated);
+
+  // One rate, printed totals: the invoice's own figures (an all-unrated invoice with printed totals too).
+  if (!totalsBlank && groups.size <= 1) {
+    const rate = [...groups.keys()][0] ?? null;
     return {
       rows: [{
-        rate: rates[0] ?? null,
+        rate,
         lines: gstLines,
-        taxable,
+        taxable: result.computed.taxable,
         igst: intra === true ? 0 : has(t.igst) ? t.igst : null,
         cgst: intra === false ? 0 : has(t.cgst) ? t.cgst : null,
         sgst: intra === false ? 0 : has(t.sgst) ? t.sgst : null,
+        yellow: gstLines.some((line) => !has(line.gstRate)),
       }],
       notes,
     };
   }
 
-  const unknown = gstLines.filter((line) => !has(line.gstRate));
-  const rows = rates.map((rate, index) => {
-    // Lines without a written rate go with the first rate's row (noted in Review).
-    const lines = [...gstLines.filter((line) => line.gstRate === rate), ...(index === 0 ? unknown : [])];
-    const sum = (key) => (lines.every((line) => has(line[key])) ? round2(lines.reduce((a, line) => a + line[key], 0)) : null);
+  const rows = [...groups].map(([rate, lines]) => {
     const values = lines.map(lineValue);
-    return {
-      rate,
-      lines,
-      taxable: values.every((v) => v !== null) ? round2(values.reduce((a, v) => a + v, 0)) : null,
-      igst: intra === true ? 0 : sum("igst"),
-      cgst: intra === false ? 0 : sum("cgst"),
-      sgst: intra === false ? 0 : sum("sgst"),
-    };
+    const taxable = values.every((v) => v !== null) ? round2(values.reduce((a, v) => a + v, 0)) : null;
+    const tax = rate === null || taxable === null ? null : round2((taxable * rate) / (intra === false ? 100 : 200));
+    const split = (interstate) => (tax === null ? null : interstate === (intra === false) ? tax : 0);
+    return { rate, lines, taxable, igst: split(true), cgst: split(false), sgst: split(false), yellow: rate === null || lines.some((l) => !has(l.gstRate)) };
   });
-  if (rows.some((row) => (intra === false ? row.igst : row.cgst) === null)) {
-    notes.push("Several GST rates: the invoice shows tax only as a total, so the per-rate tax cells are blank. Enter them from the invoice.");
+  if (!gstLines.some((line) => has(line.gstRate))) {
+    for (const line of gstLines) notes.push(`Line ${sno(line)}: no GST rate written.`);
+  }
+
+  if (totalsBlank) {
+    if (rows.some((row) => row.rate !== null)) notes.push("Tax computed from lines, not printed on the invoice.");
+    for (const row of rows) row.yellow = true;
+  } else {
+    // Printed totals: the rate-wise split must add up to them (round-off tolerance 1.00).
+    const added = (key) => round2(rows.reduce((a, row) => a + (row[key] ?? 0), 0));
+    const off = [["taxable", "taxable amount", result.computed.taxable], ["cgst", "CGST", t.cgst], ["sgst", "SGST", t.sgst], ["igst", "IGST", t.igst]]
+      .filter(([key, , printed]) => has(printed) && Math.abs(added(key) - printed) > 1)
+      .map(([key, name, printed]) => `${name} ${fmt(added(key))} vs printed ${fmt(printed)}`);
+    if (off.length) {
+      notes.push(`The rate-wise split does not match the printed totals: ${off.join("; ")}.`);
+      for (const row of rows) row.yellow = true;
+    }
   }
   return { rows, notes };
 }
@@ -189,7 +193,7 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
         row.sgst,
         entryType === "STOCK" ? stockText(row.lines) : "Not applicable (normal entry)",
       ]);
-      if (flagged(entry) || entryType === "TCS") gstYellow.add(added.number);
+      if (flagged(entry) || entryType === "TCS" || row.yellow) gstYellow.add(added.number);
     }
   }
   if (gst.rowCount > 1) totalRow(gst, "TOTAL", 4, [5, 6, 7, 8], 2);

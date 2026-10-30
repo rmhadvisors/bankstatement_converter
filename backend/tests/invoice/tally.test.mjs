@@ -55,9 +55,10 @@ test("client samples: statuses, reasons and the Tally workbook match the verifie
     assert.deepEqual([header, ...rows(sheet)], expectedRows, `sheet ${name}`);
   }
   const gst = workbook.getWorksheet("GST Entries");
-  assert.equal(gst.getCell("E6").value.formula, "SUM(E2:E5)");
+  assert.equal(gst.getCell("E7").value.formula, "SUM(E2:E6)", "TOTAL sums every row, including the split ones");
   assert.equal(gst.getCell("A2").numFmt, "dd/mm/yyyy");
   assert.equal(gst.getCell("A4").fill?.fgColor?.argb, "FFFFF2CC", "INCOMPLETE row is highlighted");
+  assert.equal(gst.getCell("A5").fill?.fgColor?.argb, "FFFFF2CC", "its no-rate row is highlighted");
   assert.equal(workbook.getWorksheet("Stock Items").getCell("D4").fill?.fgColor?.argb, "FFFFF2CC", "low-confidence HSN highlighted");
 });
 
@@ -96,15 +97,15 @@ test("Tally workbook: multi-rate GST rows, TCS bar bill, IMPORT placeholder, unk
   const workbook = await toWorkbook(evaluated, parties);
 
   const gst = rows(workbook.getWorksheet("GST Entries"));
-  // Multi-rate: one row per rate; written per-line taxes absent, so tax cells blank (never computed).
-  assert.deepEqual(gst.slice(0, 2).map((r) => [r[3], r[4], r[6]]), [["T-1", 2000, null], ["T-1", 500, null]]);
+  // Multi-rate: one row per rate, tax = taxable x rate from the lines (18% and 12%).
+  assert.deepEqual(gst.slice(0, 2).map((r) => [r[3], r[4], r[6], r[7]]), [["T-1", 2000, 180, 180], ["T-1", 500, 30, 30]]);
   assert.equal(gst[2][3], "B-9", "food part of the bar bill also goes to GST Entries");
   const tcs = rows(workbook.getWorksheet("TCS Entries"));
   assert.deepEqual(tcs[0].slice(1), ["TEST BAR AND RESTAURANT", "B-9", 1000, 10]);
   const imp = rows(workbook.getWorksheet("Import"));
   assert.deepEqual(imp[0].slice(1, 4), ["TEST IMPORTS", "I-1", 5000]);
   const review = rows(workbook.getWorksheet("Review"));
-  assert.match(review[0][6], /Several GST rates/);
+  assert.match(review[0][6], /^All amounts check/, "split adds up to the printed totals: no mismatch note");
   assert.match(review[1][6], /also has GST items/);
 
   const unknown = evaluate([{ invoice: { supplier: { name: "Brand New Supplier" }, lineItems: [{ description: "Cement", hsnSac: "2523", qty: 1, rate: 1, amount: 1 }] } }], OPTIONS);
@@ -148,33 +149,141 @@ test("saved Sarvam readings: one row per invoice, INCOMPLETE stays blank, paymen
   // 5. No empty sheets, no Party Settings by default.
   assert.deepEqual(workbook.worksheets.map((s) => s.name), ["GST Entries", "Stock Items", "Review"]);
 
-  // 1 + 2. One GST row per invoice; the INCOMPLETE one has blank amounts and is yellow.
+  // 1 + 2. One GST row per invoice, except the INCOMPLETE one: rate-wise rows from its lines, yellow.
   const gst = workbook.getWorksheet("GST Entries");
   const gstAll = rows(gst);
   const gstRows = gstAll.filter((r) => r[3] && r[3] !== "TOTAL");
-  assert.equal(gstRows.length, 4);
-  const ptoRow = gstRows.find((r) => r[3] === pto.invoice.invoiceNo);
-  assert.deepEqual(ptoRow.slice(4, 8), [null, null, null, null]);
-  const ptoRowNumber = gstAll.indexOf(ptoRow) + 2;
-  assert.equal(gst.getRow(ptoRowNumber).getCell(1).fill?.fgColor?.argb, "FFFFF2CC");
+  assert.equal(gstRows.length, 5);
+  const ptoRows = gstRows.filter((r) => r[3] === pto.invoice.invoiceNo);
+  assert.deepEqual(ptoRows.map((r) => r.slice(4, 8)), [[206429, 0, 18578.61, 18578.61], [8950, null, null, null]]);
+  for (const r of ptoRows) assert.equal(gst.getRow(gstAll.indexOf(r) + 2).getCell(1).fill?.fgColor?.argb, "FFFFF2CC");
 
   // The other three readings export the same GST figures as the hand-typed values.
   const expected = JSON.parse(readFileSync(join(demoDir, "expected.json"), "utf8")).sheets["GST Entries"];
-  assert.deepEqual(gstRows.map((r) => r.slice(0, 8)), expected.slice(1, 5).map((r) => r.slice(0, 8)));
+  assert.deepEqual(gstRows.map((r) => r.slice(0, 8)), expected.slice(1, 6).map((r) => r.slice(0, 8)));
 
   const review = rows(workbook.getWorksheet("Review"));
   const ptoReview = review.find((r) => r[0] === pto.invoice.invoiceNo);
   assert.equal(ptoReview[5] || null, null, "no payment note on the P.T.O. invoice");
   assert.ok(review.every((r) => !r[5] || /payment|cheque|neft|recd|received|recieved/i.test(r[5])), "payment notes are about payment");
 
-  // "Use computed totals" (review screen) is the only way the line sum reaches the Tally sheet.
+  // "Use computed totals": the unrated line takes the single rate of the others -> one row.
   pto.invoice.useComputedTotals = true;
   const chosen = await toWorkbook(evaluate(items.map((item) => (item.invoice.invoiceNo === pto.invoice.invoiceNo ? { ...item, invoice: { ...item.invoice, useComputedTotals: true } } : item)), { ...OPTIONS, parties }), parties);
-  const chosenRow = rows(chosen.getWorksheet("GST Entries")).find((r) => r[3] === pto.invoice.invoiceNo);
-  assert.deepEqual(chosenRow.slice(4, 8), [215379, 0, 19384.11, 19384.11]);
+  const chosenRows = rows(chosen.getWorksheet("GST Entries")).filter((r) => r[3] === pto.invoice.invoiceNo);
+  assert.deepEqual(chosenRows.map((r) => r.slice(4, 8)), [[215379, 0, 19384.11, 19384.11]]);
 
   // Party Settings only when asked for.
   const withSettings = new ExcelJS.Workbook();
   await withSettings.xlsx.load(await buildTallyWorkbookBuffer(evaluated.map((e) => ({ ...e, entryType: e.party.entryType, partyName: e.party.name })), parties, { includePartySettings: true }));
   assert.ok(withSettings.getWorksheet("Party Settings"));
+});
+
+// GST Entries: one row per line GST rate, built from the lines.
+const gstSplit = async (invoice, partyName = "TEST TRADERS") => {
+  const parties = [{ name: partyName, gstin: null, entryType: "STOCK" }];
+  const evaluated = evaluate([{ invoice: { supplier: { name: partyName }, invoiceNo: "S-1", invoiceDate: "05/08/2026", ...invoice } }], { ...OPTIONS, parties });
+  const workbook = await toWorkbook(evaluated, parties);
+  const sheet = workbook.getWorksheet("GST Entries");
+  const all = rows(sheet).filter((r) => r[3] === "S-1");
+  return {
+    sheet,
+    gst: all.map((r) => r.slice(4, 8)),
+    yellow: all.map((_, i) => sheet.getRow(i + 2).getCell(1).fill?.fgColor?.argb === "FFFFF2CC"),
+    stock: all.map((r) => r[8]),
+    review: rows(workbook.getWorksheet("Review"))[0][6],
+    status: evaluated[0].result.status,
+  };
+};
+const line = (description, amount, gstRate) => ({ description, amount, ...(gstRate === undefined ? {} : { gstRate }) });
+
+test("GST Entries: two rates split into two rows, tax = taxable x rate / 2, matching printed totals stay clean", async () => {
+  const r = await gstSplit({ lineItems: [line("Paint", 2000, 18), line("Brush", 500, 12), line("Thinner", 1000, 18)], totals: { taxableAmount: 3500, cgst: 300, sgst: 300, grandTotal: 4100 } });
+  assert.deepEqual(r.gst, [[3000, 0, 270, 270], [500, 0, 30, 30]]);
+  assert.deepEqual(r.yellow, [false, false]);
+  assert.equal(r.stock[0].split("\n").length, 2, "STOCK text lists only that rate's lines");
+  assert.equal(r.stock[1].split("\n").length, 1);
+  assert.doesNotMatch(r.review, /does not match/);
+  assert.equal(r.sheet.getCell("E4").value.formula, "SUM(E2:E3)");
+});
+
+test("GST Entries: interstate invoice puts the tax in IGST", async () => {
+  const supplier = `27AAAPT1111T1Z${gstinCheckChar("27AAAPT1111T1Z")}`;
+  const buyer = `29AAAPT2222T1Z${gstinCheckChar("29AAAPT2222T1Z")}`;
+  const r = await gstSplit({ supplier: { name: "TEST TRADERS", gstin: supplier }, buyer: { name: "B", gstin: buyer }, lineItems: [line("Paint", 2000, 18), line("Brush", 500, 12)], totals: { taxableAmount: 2500, igst: 420, grandTotal: 2920 } });
+  assert.deepEqual(r.gst, [[2000, 360, 0, 0], [500, 60, 0, 0]]);
+});
+
+test("GST Entries: printed totals that the rate-wise split cannot reach get a review reason and yellow rows", async () => {
+  const r = await gstSplit({ lineItems: [line("Paint", 2000, 18), line("Brush", 500, 12)], totals: { taxableAmount: 2500, cgst: 240, sgst: 240, grandTotal: 2980 } });
+  assert.deepEqual(r.gst, [[2000, 0, 180, 180], [500, 0, 30, 30]]);
+  assert.match(r.review, /rate-wise split does not match the printed totals: CGST 210\.00 vs printed 240\.00; SGST 210\.00 vs printed 240\.00\./);
+  assert.deepEqual(r.yellow, [true, true]);
+  // Within the 1.00 round-off tolerance: no reason.
+  const close = await gstSplit({ lineItems: [line("Paint", 2000, 18), line("Brush", 500, 12)], totals: { taxableAmount: 2500, cgst: 210.5, sgst: 210.5, grandTotal: 2921 } });
+  assert.doesNotMatch(close.review, /does not match/);
+});
+
+test("GST Entries: INCOMPLETE invoice is split by rate from its lines, yellow, never inventing a rate", async () => {
+  const lines = [line("Paint", 2000, 18), line("Brush", 500, 12), line("Labour", 700)];
+  const r = await gstSplit({ continuedOverleaf: true, lineItems: lines });
+  assert.equal(r.status, "INCOMPLETE");
+  assert.deepEqual(r.gst, [[2000, 0, 180, 180], [500, 0, 30, 30], [700, null, null, null]]);
+  assert.deepEqual(r.yellow, [true, true, true]);
+  assert.match(r.review, /Tax computed from lines, not printed on the invoice\./);
+  assert.match(r.review, /Line 3 \(Labour, 700\): no GST rate written\./);
+  // Use computed totals: the rated lines disagree (18% and 12%), so the unrated line stays unrated.
+  const chosen = await gstSplit({ continuedOverleaf: true, useComputedTotals: true, lineItems: lines });
+  assert.deepEqual(chosen.gst, r.gst);
+  // No line has a rate: one row, taxable only.
+  const none = await gstSplit({ continuedOverleaf: true, lineItems: [line("Labour", 700), line("Hire", 300)] });
+  assert.deepEqual(none.gst, [[1000, null, null, null]]);
+  assert.match(none.review, /Line 1: no GST rate written\.\nLine 2: no GST rate written\./);
+});
+
+test("GST Entries: 'Use computed totals' gives unrated lines the one common rate, with a review reason", async () => {
+  const lines = [line("Paint", 2000, 18), line("Brush", 500, 18), line("Labour", 700)];
+  const plain = await gstSplit({ continuedOverleaf: true, lineItems: lines });
+  assert.deepEqual(plain.gst, [[2500, 0, 225, 225], [700, null, null, null]]);
+  const chosen = await gstSplit({ continuedOverleaf: true, useComputedTotals: true, lineItems: lines });
+  assert.deepEqual(chosen.gst, [[3200, 0, 288, 288]]);
+  assert.deepEqual(chosen.yellow, [true]);
+  assert.match(chosen.review, /Line 3: no GST rate written; 18% \(the rate of the other lines\) used because "Use computed totals" was chosen\./);
+});
+
+test("GST Entries: single-rate invoice stays one row with its printed figures", async () => {
+  const r = await gstSplit({ lineItems: [line("Film", 900, 18), line("Blinds", 6355, 18), line("Matt", 4200, 18)], totals: { taxableAmount: 11455, cgstRate: 9, cgst: 1030.95, sgstRate: 9, sgst: 1030.95, roundOff: 0.1, grandTotal: 13517 } });
+  assert.deepEqual(r.gst, [[11455, 0, 1030.95, 1030.95]]);
+  assert.deepEqual(r.yellow, [false]);
+});
+
+// The client's saved Rohit 005 (P.T.O.) and Mahavir 101 readings.
+test("GST Entries: Rohit 005 splits 18% / no rate; Mahavir 101 stays one row", { skip: !hasSamples && "needs fixtures/invoices/demo/*.json (git-ignored)" }, async () => {
+  const read = (name) => JSON.parse(readFileSync(join(demoDir, name), "utf8"));
+  const parties = read("parties.json");
+  const sample = (name) => {
+    const s = read(name);
+    return { invoice: s.invoice, sourceFile: s.file };
+  };
+  const run = async (items) => {
+    const workbook = await toWorkbook(evaluate(items, { ...OPTIONS, parties }), parties);
+    const sheet = workbook.getWorksheet("GST Entries");
+    return { sheet, rows: rows(sheet).filter((r) => r[3] && r[3] !== "TOTAL"), review: rows(workbook.getWorksheet("Review")) };
+  };
+
+  const rohit = await run([sample("invoice3.json")]);
+  assert.deepEqual(rohit.rows.map((r) => r.slice(3, 8)), [["005", 206429, 0, 18578.61, 18578.61], ["005", 8950, null, null, null]]);
+  assert.deepEqual([2, 3].map((n) => rohit.sheet.getCell(`A${n}`).fill?.fgColor?.argb), ["FFFFF2CC", "FFFFF2CC"]);
+  assert.equal(rohit.sheet.getCell("E4").value.formula, "SUM(E2:E3)");
+  assert.match(rohit.review[0][6], /Tax computed from lines, not printed on the invoice\./);
+  assert.match(rohit.review[0][6], /Line 4 \(.+, 8,950\): no GST rate written\./);
+
+  const forced = sample("invoice3.json");
+  forced.invoice.useComputedTotals = true;
+  const chosen = await run([forced]);
+  assert.deepEqual(chosen.rows.map((r) => r.slice(4, 8)), [[215379, 0, 19384.11, 19384.11]]);
+  assert.match(chosen.review[0][6], /Line 4: no GST rate written; 18% .* "Use computed totals"/);
+
+  const mahavir = await run([sample("invoice2.json")]);
+  assert.deepEqual(mahavir.rows.map((r) => r.slice(3, 8)), [["101", 11455, 0, 1030.95, 1030.95]]);
 });
