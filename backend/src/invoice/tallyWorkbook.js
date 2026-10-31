@@ -1,4 +1,4 @@
-// Client's Tally workbook: GST Entries, TCS Entries, Import, Stock Items, Review, Party Settings.
+// Client's Tally workbook: GST Entries, Lines, TCS Entries, Import, Stock Items, Review, Party Settings.
 // GST Entries rows are built per GST rate from the lines; other amounts are written values only.
 import ExcelJS from "exceljs";
 import { parseDmy } from "./validate.js";
@@ -30,7 +30,7 @@ function addSheet(workbook, name, headers, widths) {
   return sheet;
 }
 
-function finish(sheet, { moneyColumns = [], dateColumns = [], wrapColumns = [], percentColumns = [], highlight = new Set() } = {}) {
+function finish(sheet, { moneyColumns = [], dateColumns = [], dateFormat = DATE, wrapColumns = [], percentColumns = [], highlight = new Set() } = {}) {
   sheet.eachRow((row, n) => {
     if (n === 1) return;
     row.eachCell({ includeEmpty: true }, (cell, col) => {
@@ -38,7 +38,7 @@ function finish(sheet, { moneyColumns = [], dateColumns = [], wrapColumns = [], 
       cell.alignment = { vertical: "top", wrapText: wrapColumns.includes(col) };
       if (percentColumns.includes(col)) cell.numFmt = "0%";
       if (moneyColumns.includes(col)) cell.numFmt = MONEY;
-      if (dateColumns.includes(col)) cell.numFmt = DATE;
+      if (dateColumns.includes(col)) cell.numFmt = dateFormat;
       if (highlight.has(n)) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: YELLOW } };
     });
   });
@@ -91,6 +91,12 @@ function stockText(lines) {
     .join("\n");
 }
 
+// "Use computed totals": unrated lines take the rate of the others, only if the rated lines all agree.
+function assumedRate(invoice, lines) {
+  const rates = [...new Set(lines.map((line) => line.gstRate).filter(has))];
+  return invoice.useComputedTotals === true && rates.length === 1 ? rates[0] : null;
+}
+
 // Rows for "GST Entries": one per line GST rate, built from the lines (tax = taxable x rate, never
 // copied from elsewhere). Lines without a rate get their own row with the tax cells blank.
 // A single-rate invoice with printed totals keeps the printed figures. yellow: row needs a look.
@@ -102,9 +108,7 @@ function gstRows(entry, gstLines) {
   const notes = [];
   const sno = (line) => line.sno ?? gstLines.indexOf(line) + 1;
 
-  // "Use computed totals": unrated lines take the rate of the others, only if the rated lines all agree.
-  const ratedRates = [...new Set(gstLines.map((line) => line.gstRate).filter(has))];
-  const assumed = invoice.useComputedTotals === true && ratedRates.length === 1 ? ratedRates[0] : null;
+  const assumed = assumedRate(invoice, gstLines);
   const rateOf = (line) => (has(line.gstRate) ? line.gstRate : assumed);
   for (const line of gstLines) {
     if (!has(line.gstRate) && assumed !== null) notes.push(`Line ${sno(line)}: no GST rate written; ${assumed}% (the rate of the other lines) used because "Use computed totals" was chosen.`);
@@ -172,6 +176,7 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
   // GST Entries (STOCK and NORMAL parties, plus the GST part of a TCS bill)
   const gst = addSheet(workbook, "GST Entries", ["DATE", "PARTY NAME", "GSTIN", "INVOICE NO", "TAXABLE AMOUNT", "IGST", "CGST", "SGST", "STOCK (IF APPLICABLE)"], [12, 28, 19, 15, 16, 11, 12, 12, 58]);
   const gstYellow = new Set();
+  const gstTax = new Map(); // entry -> { cgst, igst } as written on GST Entries, for the Lines cross-check
   for (const entry of sorted) {
     const { invoice, entryType } = entry;
     if (!["STOCK", "NORMAL", "TCS"].includes(entryType)) continue;
@@ -181,6 +186,7 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
     if (entryType === "TCS") extraNotes.get(entry).push("Bar bill also has GST items: entered on GST Entries as well as TCS Entries. Please check both.");
     const { rows, notes } = gstRows(entry, gstLines);
     extraNotes.get(entry).push(...notes);
+    gstTax.set(entry, { cgst: round2(rows.reduce((a, row) => a + (row.cgst ?? 0), 0)), igst: round2(rows.reduce((a, row) => a + (row.igst ?? 0), 0)) });
     for (const row of rows) {
       const added = gst.addRow([
         parseDmy(invoice.invoiceDate),
@@ -199,6 +205,45 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
   if (gst.rowCount > 1) totalRow(gst, "TOTAL", 4, [5, 6, 7, 8], 2);
   finish(gst, { moneyColumns: [5, 6, 7, 8], dateColumns: [1], wrapColumns: [9], highlight: gstYellow });
   note(gst, "Yellow row = needs review (see Review sheet). Stock column: Item | HSN | Qty | Rate | Amount | GST%.");
+
+  // Lines: reference only. One row per invoice line with its own tax (amount x rate), never read back by Tally.
+  const linesSheet = addSheet(workbook, "Lines", ["DATE", "PARTY NAME", "INVOICE NO", "LINE NO", "DESCRIPTION", "HSN/SAC", "QTY", "UNIT", "RATE", "AMOUNT", "GST %", "IGST", "CGST", "SGST"], [12, 28, 15, 8, 40, 11, 9, 8, 12, 14, 8, 12, 12, 12]);
+  const linesYellow = new Set();
+  for (const entry of sorted) {
+    const { invoice, entryType } = entry;
+    const lines = invoice.lineItems ?? [];
+    const intra = entry.result.computed.intraState;
+    const assumed = entryType === "STOCK" || entryType === "NORMAL" ? assumedRate(invoice, lines) : null; // the rule GST Entries applies
+    const sum = { cgst: 0, igst: 0 };
+    for (const [i, line] of lines.entries()) {
+      const amount = lineValue(line);
+      const rate = has(line.gstRate) ? line.gstRate : assumed;
+      const tax = rate === null || amount === null ? null : round2((amount * rate) / (intra === false ? 100 : 200));
+      const split = (interstate) => (tax === null ? null : interstate === (intra === false) ? tax : 0);
+      const sno = String(line.sno ?? i + 1).replace(/^[^0-9A-Za-z]+|[^0-9A-Za-z]+$/g, "");
+      sum.igst += split(true) ?? 0;
+      sum.cgst += split(false) ?? 0;
+      const added = linesSheet.addRow([
+        parseDmy(invoice.invoiceDate), entry.partyName, invoice.invoiceNo ?? "", /^\d+$/.test(sno) ? Number(sno) : sno,
+        line.description ?? "", line.hsnSac ?? null, line.qty, line.unit ? line.unit.toUpperCase() : null, line.rate, amount,
+        rate, split(true), split(false), split(false),
+      ]);
+      if (flagged(entry) || entryType === "TCS" || rate === null) linesYellow.add(added.number);
+    }
+    // Per-line rounding can leave a paisa between this sheet and GST Entries; say so, GST Entries stays as it is.
+    const written = gstTax.get(entry);
+    if (written) {
+      for (const [key, name] of [["cgst", "CGST"], ["igst", "IGST"]]) {
+        const here = round2(sum[key]);
+        if (Math.abs(here - written[key]) > 0.004) extraNotes.get(entry).push(`Lines sheet ${name} ${fmt(here)} differs from GST Entries ${name} ${fmt(written[key])} by ${fmt(Math.abs(here - written[key]))} (rounding of the line tax).`);
+      }
+    }
+  }
+  if (linesSheet.rowCount > 1) {
+    totalRow(linesSheet, "TOTAL", 5, [10, 12, 13, 14], 2);
+    finish(linesSheet, { moneyColumns: [7, 9, 10, 12, 13, 14], dateColumns: [1], dateFormat: "dd-mm-yyyy", wrapColumns: [5], highlight: linesYellow });
+    note(linesSheet, "Reference for checking only, not a Tally import sheet. Yellow row = invoice needs review or the line has no GST rate.");
+  }
 
   // TCS Entries: liquor is outside GST (lines without a GST rate).
   const tcs = addSheet(workbook, "TCS Entries", ["DATE", "PARTY NAME", "INVOICE NO", "NON GST LIQUOR (TAXABLE)", "TCS"], [12, 28, 15, 22, 12]);

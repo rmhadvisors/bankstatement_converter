@@ -48,7 +48,7 @@ test("client samples: statuses, reasons and the Tally workbook match the verifie
   assert.deepEqual(evaluated.map((e) => e.result.status), ["OK", "OK", "INCOMPLETE", "OK"]);
 
   const workbook = await toWorkbook(evaluated, parties);
-  assert.deepEqual(workbook.worksheets.map((s) => s.name), Object.keys(expected.sheets));
+  assert.deepEqual(workbook.worksheets.map((s) => s.name).filter((n) => n !== "Lines"), Object.keys(expected.sheets));
   for (const [name, expectedRows] of Object.entries(expected.sheets)) {
     const sheet = workbook.getWorksheet(name);
     const header = Array.from({ length: sheet.columnCount }, (_, i) => sheet.getRow(1).getCell(i + 1).value);
@@ -147,7 +147,7 @@ test("saved Sarvam readings: one row per invoice, INCOMPLETE stays blank, paymen
   const workbook = await toWorkbook(evaluated, parties);
 
   // 5. No empty sheets, no Party Settings by default.
-  assert.deepEqual(workbook.worksheets.map((s) => s.name), ["GST Entries", "Stock Items", "Review"]);
+  assert.deepEqual(workbook.worksheets.map((s) => s.name), ["GST Entries", "Lines", "Stock Items", "Review"]);
 
   // 1 + 2. One GST row per invoice, except the INCOMPLETE one: rate-wise rows from its lines, yellow.
   const gst = workbook.getWorksheet("GST Entries");
@@ -286,4 +286,93 @@ test("GST Entries: Rohit 005 splits 18% / no rate; Mahavir 101 stays one row", {
 
   const mahavir = await run([sample("invoice2.json")]);
   assert.deepEqual(mahavir.rows.map((r) => r.slice(3, 8)), [["101", 11455, 0, 1030.95, 1030.95]]);
+});
+
+// Lines: one reference row per invoice line, tax = amount x rate (never read back by Tally).
+const LINES_YELLOW = "FFFFF2CC";
+const linesOf = async (items, parties) => {
+  const evaluated = evaluate(items, { ...OPTIONS, parties });
+  const workbook = await toWorkbook(evaluated, parties);
+  const sheet = workbook.getWorksheet("Lines");
+  const body = sheet ? rows(sheet).filter((r) => r[2] !== null && r[4] !== null && r[4] !== "TOTAL").map((r, i) => ({ r, yellow: sheet.getRow(i + 2).getCell(1).fill?.fgColor?.argb === LINES_YELLOW })) : [];
+  return { workbook, sheet, body, evaluated, review: rows(workbook.getWorksheet("Review")) };
+};
+const amounts = (r) => [r[9], r[11], r[12], r[13]]; // AMOUNT, IGST, CGST, SGST
+
+test("Lines: sits after GST Entries, header, TOTAL formulas, clean line numbers, real dates, reference note", async () => {
+  const parties = [{ name: "TEST TRADERS", gstin: null, entryType: "STOCK" }];
+  const { workbook, sheet, body } = await linesOf([{ invoice: { supplier: { name: "TEST TRADERS" }, invoiceNo: "L-1", invoiceDate: "05/08/2026", lineItems: [{ sno: "4)", description: "Paint", qty: 2, unit: "ltr", rate: 1000, amount: 2000, gstRate: 18 }, { sno: "2.", description: "Brush", amount: 500, gstRate: 12 }], totals: { taxableAmount: 2500, cgst: 210, sgst: 210, grandTotal: 2920 } } }], parties);
+  assert.deepEqual(workbook.worksheets.map((s) => s.name).slice(0, 2), ["GST Entries", "Lines"]);
+  assert.deepEqual(sheet.getRow(1).values.slice(1), ["DATE", "PARTY NAME", "INVOICE NO", "LINE NO", "DESCRIPTION", "HSN/SAC", "QTY", "UNIT", "RATE", "AMOUNT", "GST %", "IGST", "CGST", "SGST"]);
+  assert.equal(sheet.getCell("A1").fill?.fgColor?.argb, "FF2F5F5F");
+  assert.equal(sheet.getCell("A2").font?.name, "Arial");
+  assert.ok(sheet.getCell("A2").value instanceof Date);
+  assert.equal(sheet.getCell("A2").numFmt, "dd-mm-yyyy");
+  assert.equal(sheet.getCell("J2").numFmt, "#,##0.00");
+  assert.deepEqual(body.map((b) => [b.r[3], b.r[7], b.r[10], ...amounts(b.r)]), [[4, "LTR", 18, 2000, 0, 180, 180], [2, null, 12, 500, 0, 30, 30]]);
+  assert.deepEqual(body.map((b) => b.yellow), [false, false]);
+  assert.deepEqual(["J", "L", "M", "N"].map((c) => sheet.getCell(`${c}4`).value.formula), ["SUM(J2:J3)", "SUM(L2:L3)", "SUM(M2:M3)", "SUM(N2:N3)"]);
+  assert.match(sheet.getCell("A6").value, /not a Tally import sheet/);
+});
+
+test("Lines: interstate puts the line tax in IGST; a line without a rate is blank and yellow; no lines = no sheet", async () => {
+  const supplier = `27AAAPT1111T1Z${gstinCheckChar("27AAAPT1111T1Z")}`;
+  const buyer = `29AAAPT2222T1Z${gstinCheckChar("29AAAPT2222T1Z")}`;
+  const parties = [{ name: "TEST TRADERS", gstin: null, entryType: "STOCK" }];
+  const base = { supplier: { name: "TEST TRADERS", gstin: supplier }, buyer: { name: "B", gstin: buyer }, invoiceNo: "L-2", invoiceDate: "05/08/2026" };
+  const inter = await linesOf([{ invoice: { ...base, lineItems: [line("Paint", 2000, 18), line("Brush", 500, 12)], totals: { taxableAmount: 2500, igst: 420, grandTotal: 2920 } } }], parties);
+  assert.deepEqual(inter.body.map((b) => amounts(b.r)), [[2000, 360, 0, 0], [500, 60, 0, 0]]);
+  assert.deepEqual(inter.body.map((b) => b.yellow), [false, false]);
+  const unrated = await linesOf([{ invoice: { ...base, lineItems: [line("Paint", 2000, 18), line("Labour", 700)] } }], parties);
+  assert.deepEqual(unrated.body.map((b) => [...amounts(b.r), b.r[10], b.yellow]), [[2000, 360, 0, 0, 18, true], [700, null, null, null, null, true]]);
+  const none = await linesOf([{ invoice: { ...base, lineItems: [] } }], parties);
+  assert.equal(none.sheet, undefined);
+});
+
+test("Lines: a paisa between line tax and GST Entries gets a review note, GST Entries is untouched", async () => {
+  const parties = [{ name: "TEST TRADERS", gstin: null, entryType: "STOCK" }];
+  // 3 x 33.33 at 18% -> each line CGST 3.00 (2.9997), GST Entries rounds the 99.99 group once: 8.9991 -> 9.00 (no gap); use .5 paise to force one.
+  const lines = [line("A", 10.25, 18), line("B", 10.25, 18)]; // 0.9225 each -> 0.92 + 0.92 = 1.84; group 20.5 x 9% = 1.845 -> 1.85
+  const r = await linesOf([{ invoice: { supplier: { name: "TEST TRADERS" }, invoiceNo: "L-3", invoiceDate: "05/08/2026", lineItems: lines } }], parties);
+  assert.deepEqual(r.workbook.getWorksheet("GST Entries").getCell("G2").value, 1.85);
+  assert.deepEqual(r.body.map((b) => b.r[12]), [0.92, 0.92]);
+  assert.match(r.review[0][6], /Lines sheet CGST 1\.84 differs from GST Entries CGST 1\.85 by 0\.01/);
+});
+
+// The client's saved readings (git-ignored fixtures).
+test("Lines: Rohit 006, Ambika, Mahavir 101, Rohit 005 line by line; per-invoice CGST matches GST Entries within 0.05", { skip: !hasSamples && "needs fixtures/invoices/demo/*.json (git-ignored)" }, async () => {
+  const read = (name) => JSON.parse(readFileSync(join(demoDir, name), "utf8"));
+  const parties = read("parties.json");
+  const sample = (name) => {
+    const s = read(name);
+    return { invoice: s.invoice, sourceFile: s.file };
+  };
+  const only = async (name, prepare = (s) => s) => linesOf([prepare(sample(name))], parties);
+  const forInvoice = (r, no) => r.body.filter((b) => b.r[2] === no);
+
+  const rohit006 = await only("invoice4.json");
+  assert.deepEqual(rohit006.body.map((b) => amounts(b.r)), [[35385, 0, 3184.65, 3184.65], [23655, 0, 2128.95, 2128.95]]);
+  const ambika = await only("invoice1.json");
+  assert.deepEqual(ambika.body.map((b) => amounts(b.r)), [[34000, 0, 3060, 3060], [16000, 0, 1440, 1440]]);
+  const mahavir = await only("invoice2.json");
+  assert.deepEqual(mahavir.body.map((b) => amounts(b.r)), [[900, 0, 81, 81], [6355, 0, 571.95, 571.95], [4200, 0, 378, 378]]);
+
+  const rohit005 = await only("invoice3.json");
+  assert.deepEqual(rohit005.body.map((b) => amounts(b.r)), [[154624, 0, 13916.16, 13916.16], [20800, 0, 1872, 1872], [31005, 0, 2790.45, 2790.45], [8950, null, null, null]]);
+  assert.deepEqual(rohit005.body.map((b) => b.yellow), [true, true, true, true], "INCOMPLETE invoice");
+  assert.deepEqual(rohit005.body.map((b) => b.r[3]), [1, 2, 3, 4]);
+
+  // "Use computed totals" gives line 4 the 18% and keeps the existing review reason.
+  const chosen = await only("invoice3.json", (s) => ({ ...s, invoice: { ...s.invoice, useComputedTotals: true } }));
+  assert.deepEqual(chosen.body[3].r.slice(9, 14), [8950, 18, 0, 805.5, 805.5]);
+  assert.match(chosen.review[0][6], /Line 4: no GST rate written; 18% .* "Use computed totals"/);
+
+  // All four together: order is by invoice date, and each invoice's line CGST equals its GST Entries CGST.
+  const all = await linesOf(["invoice1", "invoice2", "invoice3", "invoice4"].map((n) => sample(`${n}.json`)), parties);
+  const gst = rows(all.workbook.getWorksheet("GST Entries")).filter((r) => r[3] && r[3] !== "TOTAL");
+  for (const no of new Set(all.body.map((b) => b.r[2]))) {
+    const fromLines = forInvoice(all, no).reduce((a, b) => a + (b.r[12] ?? 0), 0);
+    const fromGst = gst.filter((r) => r[3] === no).reduce((a, r) => a + (r[6] ?? 0), 0);
+    assert.ok(Math.abs(fromLines - fromGst) <= 0.05, `${no}: ${fromLines} vs ${fromGst}`);
+  }
 });
