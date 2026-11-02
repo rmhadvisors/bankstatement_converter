@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as InvoiceSettingsRouteImport } from './routes/invoice-settings'
 import { Route as InvoiceRouteImport } from './routes/invoice'
+import { Route as FuelRegisterRouteImport } from './routes/fuel-register'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CreditCardRouteImport } from './routes/credit-card'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +24,11 @@ const InvoiceSettingsRoute = InvoiceSettingsRouteImport.update({
 const InvoiceRoute = InvoiceRouteImport.update({
   id: '/invoice',
   path: '/invoice',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FuelRegisterRoute = FuelRegisterRouteImport.update({
+  id: '/fuel-register',
+  path: '/fuel-register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/credit-card': typeof CreditCardRoute
   '/dashboard': typeof DashboardRoute
+  '/fuel-register': typeof FuelRegisterRoute
   '/invoice': typeof InvoiceRoute
   '/invoice-settings': typeof InvoiceSettingsRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/credit-card': typeof CreditCardRoute
   '/dashboard': typeof DashboardRoute
+  '/fuel-register': typeof FuelRegisterRoute
   '/invoice': typeof InvoiceRoute
   '/invoice-settings': typeof InvoiceSettingsRoute
 }
@@ -60,6 +68,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/credit-card': typeof CreditCardRoute
   '/dashboard': typeof DashboardRoute
+  '/fuel-register': typeof FuelRegisterRoute
   '/invoice': typeof InvoiceRoute
   '/invoice-settings': typeof InvoiceSettingsRoute
 }
@@ -69,15 +78,23 @@ export interface FileRouteTypes {
     | '/'
     | '/credit-card'
     | '/dashboard'
+    | '/fuel-register'
     | '/invoice'
     | '/invoice-settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/credit-card' | '/dashboard' | '/invoice' | '/invoice-settings'
+  to:
+    | '/'
+    | '/credit-card'
+    | '/dashboard'
+    | '/fuel-register'
+    | '/invoice'
+    | '/invoice-settings'
   id:
     | '__root__'
     | '/'
     | '/credit-card'
     | '/dashboard'
+    | '/fuel-register'
     | '/invoice'
     | '/invoice-settings'
   fileRoutesById: FileRoutesById
@@ -86,6 +103,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreditCardRoute: typeof CreditCardRoute
   DashboardRoute: typeof DashboardRoute
+  FuelRegisterRoute: typeof FuelRegisterRoute
   InvoiceRoute: typeof InvoiceRoute
   InvoiceSettingsRoute: typeof InvoiceSettingsRoute
 }
@@ -104,6 +122,13 @@ declare module '@tanstack/react-router' {
       path: '/invoice'
       fullPath: '/invoice'
       preLoaderRoute: typeof InvoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fuel-register': {
+      id: '/fuel-register'
+      path: '/fuel-register'
+      fullPath: '/fuel-register'
+      preLoaderRoute: typeof FuelRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -134,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreditCardRoute: CreditCardRoute,
   DashboardRoute: DashboardRoute,
+  FuelRegisterRoute: FuelRegisterRoute,
   InvoiceRoute: InvoiceRoute,
   InvoiceSettingsRoute: InvoiceSettingsRoute,
 }

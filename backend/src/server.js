@@ -18,6 +18,14 @@ import {
   handleInvoiceStatus,
   handleInvoiceValidate,
 } from "./invoice/service.js";
+import {
+  handleFuelBuild,
+  handleFuelConfig,
+  handleFuelConvertSubmit,
+  handleFuelExport,
+  handleFuelPage,
+  handleFuelStatus,
+} from "./invoice/fuelService.js";
 
 try {
   process.loadEnvFile();
@@ -491,6 +499,25 @@ const server = createServer(async (req, res) => {
         "/api/invoice/convert": handleInvoiceConvertSubmit,
         "/api/invoice/validate": handleInvoiceValidate,
         "/api/invoice/export": handleInvoiceExport,
+      }[url.pathname];
+      if (handler && req.method === "POST") {
+        const webRequest = await nodeRequestToWebRequest(req);
+        return sendWebResponse(
+          res,
+          webRequest ? await handler(webRequest) : Response.json({ code: "FILE_TOO_LARGE", message: "Files must be 100 MB or smaller." }, { status: 413 }),
+        );
+      }
+    }
+
+    // Fuel sales register (backend/src/invoice/fuelService.js).
+    if (url.pathname.startsWith("/api/fuel-register/")) {
+      const job = url.pathname.match(/^\/api\/fuel-register\/convert\/([^/]+)(?:\/page\/(\d+))?$/);
+      if (job && req.method === "GET") return sendWebResponse(res, job[2] ? handleFuelPage(job[1], job[2]) : handleFuelStatus(job[1]));
+      if (url.pathname === "/api/fuel-register/config" && req.method === "GET") return sendWebResponse(res, handleFuelConfig());
+      const handler = {
+        "/api/fuel-register/convert": handleFuelConvertSubmit,
+        "/api/fuel-register/build": handleFuelBuild,
+        "/api/fuel-register/export": handleFuelExport,
       }[url.pathname];
       if (handler && req.method === "POST") {
         const webRequest = await nodeRequestToWebRequest(req);
