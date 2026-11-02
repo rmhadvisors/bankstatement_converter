@@ -38,8 +38,8 @@ async function loadCanvas() {
 }
 
 // Draw `source` (anything drawImage accepts) upright, rotated by `degrees`, long side <= MAX_LONG_SIDE.
-async function toJpeg(canvasApi, source, width, height, degrees = 0) {
-  const scale = Math.min(1, MAX_LONG_SIDE / Math.max(width, height));
+async function toJpeg(canvasApi, source, width, height, degrees = 0, longSide = MAX_LONG_SIDE) {
+  const scale = Math.min(1, longSide / Math.max(width, height));
   const w = Math.round(width * scale);
   const h = Math.round(height * scale);
   const quarter = degrees % 180 !== 0;
@@ -69,7 +69,7 @@ async function imageFileToJpeg(buffer, type, rotate) {
   return toJpeg(canvasApi, image, image.width, image.height, rotate % 360);
 }
 
-async function renderPdfPages(buffer, rotate) {
+async function renderPdfPages(buffer, rotate, longSide = MAX_LONG_SIDE) {
   const canvasApi = await loadCanvas();
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer), verbosity: pdfjs.VerbosityLevel.ERRORS }).promise;
@@ -80,17 +80,18 @@ async function renderPdfPages(buffer, rotate) {
   for (let n = 1; n <= pdf.numPages; n++) {
     const page = await pdf.getPage(n);
     const base = page.getViewport({ scale: 1 });
-    const viewport = page.getViewport({ scale: MAX_LONG_SIDE / Math.max(base.width, base.height) });
+    const viewport = page.getViewport({ scale: longSide / Math.max(base.width, base.height) });
     const canvas = canvasApi.createCanvas(Math.floor(viewport.width), Math.floor(viewport.height));
     await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-    pages.push(await toJpeg(canvasApi, canvas, canvas.width, canvas.height, rotate));
+    pages.push(await toJpeg(canvasApi, canvas, canvas.width, canvas.height, rotate, longSide));
   }
   return pages;
 }
 
 // -> { kind: "text", text, pageCount } | { kind: "images", images: [{ mediaType, data, width, height }] }
-// `rotate` (0/90/180/270, clockwise) comes from the review screen's rotate button.
-async function prepareInvoiceFile(filePath, { rotate = 0 } = {}) {
+// `rotate` (0/90/180/270, clockwise) comes from the review screen's rotate button; `longSide` raises the
+// page-image size for dense handwritten tables (PDF pages only).
+async function prepareInvoiceFile(filePath, { rotate = 0, longSide } = {}) {
   const buffer = await readFile(filePath);
   const type = sniffType(buffer);
   if (!type) throw invoiceError("INVOICE_UNSUPPORTED_FILE", "Only JPG, PNG, WEBP, HEIC photos and PDF files are supported.");
@@ -98,7 +99,7 @@ async function prepareInvoiceFile(filePath, { rotate = 0 } = {}) {
 
   const { text, pageCount } = await extractPdf(filePath);
   if (rotate === 0 && text.replace(/\s+/g, "").length >= MIN_TEXT_CHARS) return { kind: "text", text, pageCount };
-  return { kind: "images", images: await renderPdfPages(buffer, rotate) };
+  return { kind: "images", images: await renderPdfPages(buffer, rotate, longSide) };
 }
 
 export { invoiceError, prepareInvoiceFile, sniffType, MAX_LONG_SIDE };

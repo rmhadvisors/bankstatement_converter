@@ -35,6 +35,7 @@ await import("./invoice/images.test.mjs");
 await import("./invoice/extract.test.mjs");
 await import("./invoice/sarvam.test.mjs");
 await import("./invoice/rules.test.mjs");
+await import("./invoice/fuelRegister.test.mjs");
 await import("./invoice/live.test.mjs");
 
 await import("./hdfc-merged-apr25-mar26.test.mjs");

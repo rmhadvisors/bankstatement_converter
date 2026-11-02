@@ -47,13 +47,14 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
   return {
     name: `gemini:${model}`,
     // signal: the per-file deadline from extract.js (covers retries); else one call's timeout.
-    async complete({ system, messages, signal = AbortSignal.timeout(TIMEOUT_MS) }) {
+    // responseSchema: another document type's Gemini schema (fuelRegister.js); default is the invoice one.
+    async complete({ system, messages, signal = AbortSignal.timeout(TIMEOUT_MS), responseSchema = GEMINI_SCHEMA }) {
       const timedOut = () => geminiError("INVOICE_LLM_TIMEOUT", `Gemini did not finish within ${Math.round(TIMEOUT_MS / 1000)} s.`);
       if (!apiKey) throw geminiError("GEMINI_KEY_MISSING", "Gemini is not configured (GEMINI_API_KEY is not set).");
       const body = JSON.stringify({
-        systemInstruction: { parts: [{ text: system + CONFIDENCE_NOTE }] },
+        systemInstruction: { parts: [{ text: responseSchema === GEMINI_SCHEMA ? system + CONFIDENCE_NOTE : system }] },
         contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: toParts(m.content) })),
-        generationConfig: { responseMimeType: "application/json", responseSchema: GEMINI_SCHEMA, maxOutputTokens: 32_768 },
+        generationConfig: { responseMimeType: "application/json", responseSchema, maxOutputTokens: 32_768 },
       });
       for (let attempt = 0; ; attempt++) {
         let response;
