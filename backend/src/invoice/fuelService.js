@@ -5,9 +5,9 @@ import crypto from "node:crypto";
 import { rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FUEL_PARTIES, buildFuelRegister, mergeReads, readFuelRegister } from "./fuelRegister.js";
+import { FUEL_PARTIES, buildFuelRegister, loadReading, mergeReads, readFuelRegister } from "./fuelRegister.js";
 import { buildFuelWorkbookBuffer } from "./fuelWorkbook.js";
-import { sniffType } from "./images.js";
+import { prepareInvoiceFile, sniffType } from "./images.js";
 import { providerConfigured } from "./extract.js";
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -16,8 +16,17 @@ const jobs = new Map();
 const json = (body, status = 200) => Response.json(body, { status });
 const fuelError = (code, message, status = 400) => json({ code, message }, status);
 
+// Dev/test only, off unless FUEL_REGISTER_SAVED_READING names a saved reading (JSON): the upload is not
+// sent to Gemini; its page images are rendered and the saved reading is returned instead.
+const savedReadingPath = () => process.env.FUEL_REGISTER_SAVED_READING || null;
+async function savedReader(file) {
+  const reading = await loadReading(savedReadingPath());
+  const { images } = await prepareInvoiceFile(file.path, { longSide: 3000 });
+  const second = reading.second?.pages?.length ?? 0;
+  return { reading, images, calls: { first: reading.pages.length, second, total: reading.pages.length + second, saved: true } };
+}
+const defaultReader = (file) => (savedReadingPath() ? savedReader(file) : readFuelRegister(file));
 // Tests swap the reader for a saved reading (no live Gemini calls).
-const defaultReader = (file) => readFuelRegister(file);
 let reader = defaultReader;
 function setFuelReader(fn) {
   reader = fn;
@@ -30,7 +39,7 @@ async function handleFuelConvertSubmit(request) {
   if (file.size > MAX_FILE_BYTES) return fuelError("FILE_TOO_LARGE", `${file.name} is larger than 20 MB.`);
   const buffer = Buffer.from(await file.arrayBuffer());
   if (sniffType(buffer) !== "pdf") return fuelError("FUEL_REGISTER_NOT_PDF", "The fuel sales register must be a PDF.");
-  if (reader === defaultReader && !providerConfigured("gemini")) return fuelError("GEMINI_KEY_MISSING", "Gemini is not configured (GEMINI_API_KEY is not set).", 503);
+  if (reader === defaultReader && !savedReadingPath() && !providerConfigured("gemini")) return fuelError("GEMINI_KEY_MISSING", "Gemini is not configured (GEMINI_API_KEY is not set).", 503);
 
   const id = crypto.randomUUID();
   const job = { state: "reading", name: file.name, expiresAt: Date.now() + JOB_TTL_MS };

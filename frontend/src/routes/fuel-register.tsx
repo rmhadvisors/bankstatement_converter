@@ -232,7 +232,11 @@ function FuelRegisterPage() {
     const target = flag.product ? pageOf(flag.product) : undefined;
     const suggestionCell =
       flag.suggestion && target && flag.day
-        ? () => editCell(target, flag.day!, flag.suggestion!.col, flag.suggestion!.value)
+        ? () => {
+            editCell(target, flag.day!, flag.suggestion!.col, flag.suggestion!.value);
+            for (const c of flag.suggestion!.companions)
+              editCell(target, flag.day!, c.col, c.value);
+          }
         : null;
     const cellEdit = (value: number | null) =>
       target && flag.day && flag.col && editCell(target, flag.day, flag.col, value);
@@ -244,6 +248,7 @@ function FuelRegisterPage() {
     return (
       <li
         key={flag.id}
+        onClick={() => target && setPage(target)}
         className={`rounded-md border p-2 text-sm ${flag.accepted !== null ? "border-slate-200 bg-slate-50 text-slate-600" : "border-amber-300 bg-amber-50 text-amber-950"}`}
       >
         <div>{flag.reason}</div>
@@ -278,7 +283,11 @@ function FuelRegisterPage() {
         {flag.suggestion && flag.accepted === null && (
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
             <span>
-              Suggestion: net sales <b>{fmt(flag.suggestion.value)}</b>. {flag.suggestion.reason}
+              Suggestion: net sales <b>{fmt(flag.suggestion.value)}</b>
+              {flag.suggestion.companions.map(
+                (c) => ` and meter sales ${fmt(c.value)} (as the second reading says)`,
+              )}
+              . {flag.suggestion.reason}
             </span>
             {suggestionCell && (
               <button
@@ -287,6 +296,7 @@ function FuelRegisterPage() {
                 onClick={suggestionCell}
               >
                 Use {fmt(flag.suggestion.value)}
+                {flag.suggestion.companions.length ? " + meter" : ""}
               </button>
             )}
           </div>
@@ -474,7 +484,11 @@ function FuelRegisterPage() {
                     {built.unresolved ? `${built.unresolved} not resolved` : "All checks resolved"}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {built.rows.length} rows · {job.calls.total} Gemini calls
+                    {built.rows.length} rows · total{" "}
+                    {fmt(
+                      Math.round(built.rows.reduce((sum, r) => sum + (r.amt ?? 0), 0) * 100) / 100,
+                    )}{" "}
+                    · {job.calls.total} Gemini calls
                   </div>
                   <button
                     type="button"
@@ -545,7 +559,13 @@ function FuelRegisterPage() {
                       >
                         <span className="font-medium">{table.item}</span>
                         <span className="text-xs text-muted-foreground">
-                          page {table.page} · rate {fmt(table.rows[0]?.rate) || "none"}
+                          page {table.page} · rate {fmt(table.rows[0]?.rate) || "none"} · qty{" "}
+                          {fmt(table.rows.reduce((sum, r) => sum + (r.netSales ?? 0), 0))} · amount{" "}
+                          {fmt(
+                            Math.round(
+                              table.rows.reduce((sum, r) => sum + (r.amount ?? 0), 0) * 100,
+                            ) / 100,
+                          )}
                         </span>
                       </button>
                       {own.length > 0 && <ul className="space-y-2 p-3">{own.map(renderFlag)}</ul>}
@@ -581,6 +601,7 @@ function FuelRegisterPage() {
                                     <td key={key} className="p-0.5 text-right">
                                       <input
                                         aria-label={`${table.item} day ${row.day} ${key}`}
+                                        onFocus={() => setPage(table.page)}
                                         title={ids
                                           .map((id) => flagsById.get(id)?.reason)
                                           .join("\n")}
@@ -602,7 +623,9 @@ function FuelRegisterPage() {
                                     </td>
                                   );
                                 })}
-                                <td className="p-1.5 text-right tabular-nums">{fmt(row.rate)}</td>
+                                <td className="p-1.5 text-right tabular-nums">
+                                  {row.netSales ? fmt(row.rate) : ""}
+                                </td>
                                 <td className="p-1.5 text-right tabular-nums">{fmt(row.amount)}</td>
                               </tr>
                             ))}

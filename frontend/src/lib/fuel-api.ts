@@ -34,7 +34,13 @@ export type Flag = {
   rateKey: string | null;
   reason: string;
   values: { first: number | null; second: number | null } | null;
-  suggestion: { col: Col; day: number; value: number; reason: string } | null;
+  suggestion: {
+    col: Col;
+    day: number;
+    value: number;
+    reason: string;
+    companions: { col: Col; value: number }[];
+  } | null;
   registerError: boolean;
   accepted: string | null;
 };

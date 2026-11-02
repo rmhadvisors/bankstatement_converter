@@ -350,7 +350,10 @@ function buildFuelRegister(reading, { party = "JIGEESHA AUTO SERVICES", narratio
         const s = present(cumulative) && present(net) ? cumulative - previousCumulative : null;
         const plausible = s !== null && Number.isInteger(s) && s >= 0 && s !== net && (oneDigitApart(s, net) || s === row.alt?.netSales);
         if (plausible) {
-          const suggestion = { col: "netSales", day, value: s, reason: `The cumulative column goes from ${num(previousCumulative)} to ${num(cumulative)}, which is ${num(s)}.` };
+          // Net sales alone would leave meter - pump test disagreeing with it, so when the second reading of the
+          // meter cell is exactly net + pump test, the suggestion carries that meter value along.
+          const companions = present(pump) && meter !== s + pump && row.alt?.salesByMeter === s + pump ? [{ col: "salesByMeter", value: s + pump }] : [];
+          const suggestion = { col: "netSales", day, value: s, companions, reason: `The cumulative column goes from ${num(previousCumulative)} to ${num(cumulative)}, which is ${num(s)}.` };
           for (const f of netFlags) f.suggestion = suggestion;
         } else if (chain && netFlags.length === 1) {
           chain.registerError = true;

@@ -242,3 +242,50 @@ test("fuel register reader: every page once, register and rates pages a second t
   assert.equal(out.images.length, 7);
   assert.deepEqual(out.reading.second.pages.map((p) => p.page), [1, 2, 3, 4, 5, 7]); // page 6 (lubricants) is not read again
 });
+
+test("fuel register: the saved-reading dev mode is off by default and only on when FUEL_REGISTER_SAVED_READING is set", { skip }, async () => {
+  const { handleFuelConvertSubmit, handleFuelStatus } = await import("../../src/invoice/fuelService.js");
+  const upload = async () => {
+    const form = new FormData();
+    form.append("file", new File([await readFile(join(dir, "july26_register.pdf"))], "r.pdf", { type: "application/pdf" }));
+    return handleFuelConvertSubmit(new Request("http://x/", { method: "POST", body: form }));
+  };
+  const saved = { key: process.env.GEMINI_API_KEY, flag: process.env.FUEL_REGISTER_SAVED_READING };
+  try {
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.FUEL_REGISTER_SAVED_READING;
+    const off = await upload();
+    assert.equal(off.status, 503); // no key and no dev flag: refused, nothing read
+    assert.equal((await off.json()).code, "GEMINI_KEY_MISSING");
+
+    process.env.FUEL_REGISTER_SAVED_READING = raw;
+    const on = await upload();
+    assert.equal(on.status, 202);
+    const { jobId } = await on.json();
+    let status;
+    do {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      status = await handleFuelStatus(jobId).json();
+    } while (status.status === "processing");
+    assert.equal(status.status, "done");
+    assert.equal(status.calls.saved, true);
+    assert.equal(status.pageCount, 7);
+  } finally {
+    for (const [name, value] of [["GEMINI_API_KEY", saved.key], ["FUEL_REGISTER_SAVED_READING", saved.flag]]) value === undefined ? delete process.env[name] : (process.env[name] = value);
+  }
+});
+
+test("fuel register July 26: using the suggestion for HSD-1 day 28 (net sales + the meter value the second reading agrees with) clears every flag on that day", { skip }, async () => {
+  const reading = await loadReading(raw);
+  const before = buildFuelRegister(reading, opts);
+  const suggestion = before.flags.find((f) => f.kind === "chain" && f.product === "High Speed Diesel-1").suggestion;
+  assert.deepEqual(suggestion.companions, [{ col: "salesByMeter", value: 5052 }]);
+  // what the review screen does on click: edit net sales and the companion meter cell
+  const pages = before && (await import("../../src/invoice/fuelRegister.js")).mergeReads(reading);
+  const row = pages[0].rows.find((r) => r.day === 28);
+  Object.assign(row, { netSales: suggestion.value, salesByMeter: 5052, edited: ["netSales", "salesByMeter"] });
+  const after = buildFuelRegister({ pages }, opts);
+  assert.deepEqual(after.flags.filter((f) => f.product === "High Speed Diesel-1" && f.day === 28), []);
+  assert.equal(after.flags.filter((f) => f.kind === "chain" && f.product === "High Speed Diesel-1").length, 0);
+  assert.equal(after.unresolved, before.unresolved - 3);
+});
