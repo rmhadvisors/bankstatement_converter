@@ -92,7 +92,7 @@ test("gemini provider: structured-output request, confidence list -> map, usage,
   assert.equal(request.body.systemInstruction.parts[0].text.startsWith(SYSTEM_PROMPT), true);
 
   const direct = await provider.complete({ system: "s", messages: [{ role: "user", content: "x" }] });
-  assert.deepEqual(direct.usage, { model: "gemini-test", inputTokens: 1000, outputTokens: 500 });
+  assert.deepEqual(direct.usage, { model: "gemini-test", requestedModel: "gemini-test", inputTokens: 1000, outputTokens: 500 });
 
   const blocked = geminiProvider({ apiKey: "k", fetchImpl: async () => Response.json({ candidates: [{ finishReason: "SAFETY" }] }) });
   await assert.rejects(blocked.complete({ system: "s", messages: [{ role: "user", content: "x" }] }), { code: "INVOICE_LLM_REFUSED" });

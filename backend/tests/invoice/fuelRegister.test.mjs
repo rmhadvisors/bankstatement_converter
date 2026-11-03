@@ -289,3 +289,70 @@ test("fuel register July 26: using the suggestion for HSD-1 day 28 (net sales + 
   assert.equal(after.flags.filter((f) => f.kind === "chain" && f.product === "High Speed Diesel-1").length, 0);
   assert.equal(after.unresolved, before.unresolved - 3);
 });
+
+// ---- per-job models, cost estimate, arbiter ----
+
+test("fuel models: unset keeps today's behaviour; FIRST / SECOND / ARBITER override; HANDWRITTEN stays the second-read fallback", async () => {
+  const { fuelModels } = await import("../../src/invoice/fuelRegister.js");
+  assert.deepEqual(fuelModels({}), { first: undefined, second: undefined, arbiter: null });
+  assert.deepEqual(fuelModels({ GEMINI_MODEL_HANDWRITTEN: "h" }), { first: undefined, second: "h", arbiter: null });
+  assert.deepEqual(fuelModels({ GEMINI_MODEL_FUEL_FIRST: "a", GEMINI_MODEL_FUEL_SECOND: "b", GEMINI_MODEL_HANDWRITTEN: "h", GEMINI_MODEL_FUEL_ARBITER: "c" }), { first: "a", second: "b", arbiter: "c" });
+});
+
+test("gemini cost estimate: rupees from the price table, GEMINI_PRICE_* / USD_INR overrides, unknown model = null", async () => {
+  const { estimateCostInr, usageLine } = await import("../../src/invoice/gemini.js");
+  const saved = { ...process.env };
+  try {
+    for (const key of ["GEMINI_PRICE_INPUT_PER_M", "GEMINI_PRICE_OUTPUT_PER_M", "USD_INR"]) delete process.env[key];
+    const usage = { model: "gemini-2.5-flash-lite", inputTokens: 1_000_000, outputTokens: 1_000_000 };
+    assert.equal(estimateCostInr(usage), (0.1 + 0.4) * 88);
+    assert.equal(estimateCostInr({ ...usage, model: "gemini-x" }), null);
+    process.env.USD_INR = "90";
+    process.env.GEMINI_PRICE_INPUT_PER_M = "1";
+    process.env.GEMINI_PRICE_OUTPUT_PER_M = "2";
+    assert.equal(estimateCostInr({ ...usage, model: "gemini-x" }), 3 * 90);
+    assert.equal(estimateCostInr(usage, { useEnv: false }), (0.1 + 0.4) * 90, "the benchmark ignores the override");
+    assert.match(usageLine("run", [usage, usage]), /^run: gemini-2.5-flash-lite, 2 call\(s\), 2000000 in \+ 2000000 out tokens, Rs 540\.00$/);
+  } finally {
+    process.env = saved;
+  }
+});
+
+test("fuel register: a third (arbiter) reading is shown next to the two readings; nothing is changed", () => {
+  const first = { page: 1, kind: "register", product: "MS", month: 4, description: "", rows: [day(1, 110, 10, 100, 100), day(2, 60, 10, 50, 150)], rates: [] };
+  const other = (net) => ({ ...first, rows: [day(1, 110, 10, 100, 100), day(2, 60, 10, net, 150)] });
+  const reading = { pages: [first, rates(2, [["MS", 100]])], second: { pages: [other(50 + 0), rates(2, [["MS", 100]])] } };
+  reading.second.pages[0].rows[1] = day(2, 60, 10, 55, 150);
+  reading.arbiter = { pages: [other(55)] };
+  const r = buildFuelRegister(reading, opts);
+  const flag = r.flags.find((f) => f.kind === "disagree" && f.col === "netSales");
+  assert.deepEqual(flag.values, { first: 50, second: 55, arbiter: 55 });
+  assert.match(flag.reason, /reads 50 on the first reading and 55 on the second\. A third reading says 55\./);
+  assert.equal(r.rows.find((x) => x.date.endsWith("-02")).qty, 50, "the first reading's number is still the one used");
+  assert.equal(buildFuelRegister({ ...reading, arbiter: undefined }, opts).flags.find((f) => f.kind === "disagree").reason.includes("third"), false);
+});
+
+test("fuel register reader: the arbiter reads only disputed pages, and only when one is given", { skip: existsSync(join(dir, "july26_register.pdf")) && existsSync(raw) ? false : "needs fixtures/invoices/jigeesha/" }, async () => {
+  const saved = await loadReading(raw);
+  const { readFuelRegister, disputedPages } = await import("../../src/invoice/fuelRegister.js");
+  const answer = (pages, seen = []) => ({
+    seen,
+    complete: async ({ messages }) => {
+      const n = Number(/page (\d+) of/.exec(messages[0].content.at(-1).text)[1]);
+      seen.push(n);
+      return { text: JSON.stringify({ pages: [pages.find((p) => p.page === n)] }), usage: { model: "m", requestedModel: "m", inputTokens: 1, outputTokens: 1 } };
+    },
+  });
+  const disputed = disputedPages(saved);
+  assert.ok(disputed.length > 0 && disputed.length < 6, `July has some, not all, pages in dispute (${disputed})`);
+  assert.ok(!disputed.includes(6), "the lubricant page is never disputed");
+  const arbiter = answer(saved.pages);
+  const out = await readFuelRegister({ path: join(dir, "july26_register.pdf") }, { provider: answer(saved.pages), secondProvider: answer(saved.second.pages), arbiterProvider: arbiter });
+  assert.deepEqual([...arbiter.seen].sort((a, b) => a - b), disputed);
+  assert.equal(out.calls.arbiter, disputed.length);
+  assert.equal(out.calls.total, 13 + disputed.length);
+  assert.deepEqual(out.reading.arbiter.pages.map((p) => p.page), disputed);
+  const without = await readFuelRegister({ path: join(dir, "july26_register.pdf") }, { provider: answer(saved.pages), secondProvider: answer(saved.second.pages) });
+  assert.equal(without.reading.arbiter, undefined);
+  assert.equal(without.calls.arbiter, undefined);
+});

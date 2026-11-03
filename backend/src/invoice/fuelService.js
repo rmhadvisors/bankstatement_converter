@@ -6,6 +6,7 @@ import { rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FUEL_PARTIES, buildFuelRegister, loadReading, mergeReads, readFuelRegister } from "./fuelRegister.js";
+import { usageLine } from "./gemini.js";
 import { buildFuelWorkbookBuffer } from "./fuelWorkbook.js";
 import { prepareInvoiceFile, sniffType } from "./images.js";
 import { providerConfigured } from "./extract.js";
@@ -53,12 +54,13 @@ async function runFuelJob(job, buffer) {
   const path = join(tmpdir(), `fuel-${crypto.randomUUID()}.pdf`);
   try {
     await writeFile(path, buffer);
-    const { reading, images, calls } = await reader({ path });
+    const { reading, images, calls, usage = [] } = await reader({ path });
     job.reading = { pages: mergeReads(reading) };
     job.images = images;
     job.calls = calls;
     job.state = "done";
-    console.log(`/api/fuel-register/convert: Gemini calls ${calls.total} (${calls.first} first readings, ${calls.second} second readings)`);
+    console.log(`/api/fuel-register/convert: Gemini calls ${calls.total} (${calls.first} first readings, ${calls.second} second readings${calls.arbiter ? `, ${calls.arbiter} arbiter readings` : ""})`);
+    if (usage.length) console.log(`/api/fuel-register/convert: ${usageLine("run", usage)}`);
   } catch (error) {
     job.state = "error";
     job.error = { code: error.code || "FUEL_REGISTER_READ_FAILED", message: error.message || "Could not read the register." };

@@ -13,6 +13,39 @@ const retryDelayMs = (reply) => (parseFloat(reply?.error?.details?.find((d) => d
 
 const geminiError = (code, message) => Object.assign(new Error(message), { code });
 
+// ---- usage and cost ----
+// Paid-tier USD per 1M tokens (input incl. images, output incl. thinking), ai.google.dev pricing page,
+// 03/11/2026; 3.8 Flash and 3.6 Flash double on 01/01/2027. GEMINI_PRICE_INPUT_PER_M and
+// GEMINI_PRICE_OUTPUT_PER_M (USD) override the table for every model; USD_INR converts (default 88).
+const PRICES = {
+  "gemini-2.5-flash-lite": [0.1, 0.4],
+  "gemini-2.5-flash": [0.3, 2.5],
+  "gemini-3.1-flash-lite": [0.25, 1.5],
+  "gemini-3.5-flash-lite": [0.3, 2.5],
+  "gemini-3.6-flash": [0.75, 3.75],
+  "gemini-3.8-flash": [0.75, 3.75],
+};
+const DEFAULT_USD_INR = 88;
+
+// usage: { model, requestedModel?, inputTokens, outputTokens } -> rupees, or null when the price is unknown.
+// useEnv: false ignores the GEMINI_PRICE_* override (the benchmark compares several models).
+function estimateCostInr(usage, { useEnv = true } = {}) {
+  const [inEnv, outEnv] = [process.env.GEMINI_PRICE_INPUT_PER_M, process.env.GEMINI_PRICE_OUTPUT_PER_M].map(Number);
+  const [inPrice, outPrice] = useEnv && inEnv >= 0 && outEnv >= 0 && process.env.GEMINI_PRICE_INPUT_PER_M && process.env.GEMINI_PRICE_OUTPUT_PER_M ? [inEnv, outEnv] : PRICES[usage.requestedModel ?? usage.model] ?? [];
+  if (!(inPrice >= 0 && outPrice >= 0)) return null;
+  return ((usage.inputTokens * inPrice + usage.outputTokens * outPrice) / 1e6) * (Number(process.env.USD_INR) || DEFAULT_USD_INR);
+}
+
+// One log line per call, and per run (a list of usages). Counts and money only, never contents.
+const rupees = (n) => (n === null ? "price unknown" : `Rs ${n.toFixed(2)}`);
+function usageLine(label, usages, options) {
+  const costs = usages.map((u) => estimateCostInr(u, options));
+  const total = costs.some((c) => c === null) ? null : costs.reduce((a, b) => a + b, 0);
+  const tokens = usages.reduce((a, u) => [a[0] + u.inputTokens, a[1] + u.outputTokens], [0, 0]);
+  return `${label}: ${[...new Set(usages.map((u) => u.requestedModel ?? u.model))].join(", ")}, ${usages.length} call(s), ${tokens[0]} in + ${tokens[1]} out tokens, ${rupees(total)}`;
+}
+const logUsage = (label, usages) => process.env.GEMINI_USAGE_LOG !== "off" && usages.length && console.log(usageLine(label, usages));
+
 // InvoiceJSON schema -> Gemini responseSchema (OpenAPI subset). The free-form confidence map can't be
 // expressed there, so Gemini returns it as a list of { field, level }, turned back into the map below.
 function toGeminiSchema(schema) {
@@ -78,21 +111,21 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
           if (signal.aborted) throw timedOut();
           continue;
         }
-        if (!response.ok) throw geminiError("INVOICE_LLM_FAILED", `Gemini error ${response.status}: ${reply?.error?.message ?? response.statusText}`);
+        // status: lets callers tell a rate limit or spending cap (429) from other failures.
+        if (!response.ok) throw Object.assign(geminiError("INVOICE_LLM_FAILED", `Gemini error ${response.status}: ${reply?.error?.message ?? response.statusText}`), { status: response.status });
         const candidate = reply?.candidates?.[0];
         if (!candidate || reply.promptFeedback?.blockReason || ["SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII"].includes(candidate.finishReason)) {
           throw geminiError("INVOICE_LLM_REFUSED", "Gemini declined to read this file.");
         }
         if (candidate.finishReason === "MAX_TOKENS") throw geminiError("INVOICE_LLM_TRUNCATED", "Gemini's answer was cut off (invoice too long).");
         const usage = reply.usageMetadata ?? {};
-        return {
-          text: toInvoiceText((candidate.content?.parts ?? []).filter((p) => p.text && !p.thought).map((p) => p.text).join("")),
-          // Thinking tokens are billed as output.
-          usage: { model: reply.modelVersion ?? model, inputTokens: usage.promptTokenCount ?? 0, outputTokens: (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0) },
-        };
+        // Thinking tokens are billed as output.
+        const used = { model: reply.modelVersion ?? model, requestedModel: model, inputTokens: usage.promptTokenCount ?? 0, outputTokens: (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0) };
+        logUsage("Gemini call", [used]);
+        return { text: toInvoiceText((candidate.content?.parts ?? []).filter((p) => p.text && !p.thought).map((p) => p.text).join("")), usage: used };
       }
     },
   };
 }
 
-export { GEMINI_SCHEMA, geminiProvider, toGeminiSchema };
+export { GEMINI_SCHEMA, PRICES, estimateCostInr, geminiProvider, logUsage, toGeminiSchema, usageLine };

@@ -9,7 +9,7 @@ import { prepareInvoiceFile } from "./images.js";
 import { readFile } from "node:fs/promises";
 import { INVOICE_SCHEMA, validateInvoiceJson } from "./schema.js";
 import { sarvamProvider } from "./sarvam.js";
-import { geminiProvider } from "./gemini.js";
+import { geminiProvider, logUsage } from "./gemini.js";
 import { validateInvoice } from "./validate.js";
 import { applyReadingRules } from "./rules.js";
 
@@ -232,7 +232,9 @@ async function extractInvoiceDetailed(file, { provider, sarvam, providerName = p
   if (providerName === "claude") return readWithClaude(file, { provider, rotate });
   // Gemini: same prompt, schema check + retry, rules and checks as Claude.
   if (providerName === "gemini") {
-    const read = await readWithClaude(file, { provider: provider ?? geminiProvider(), rotate, queue: queuedGemini });
+    // GEMINI_MODEL_INVOICE: the invoice model; unset = GEMINI_MODEL, else the default model.
+    const read = await readWithClaude(file, { provider: provider ?? geminiProvider({ model: process.env.GEMINI_MODEL_INVOICE || undefined }), rotate, queue: queuedGemini });
+    if (!provider && read.meta.usage?.model) logUsage("Gemini run (invoice)", [read.meta.usage]);
     if (!doubleCheck || read.meta.kind !== "images" || !(sarvam || doubleCheckAllowed())) return read;
     const second = await readWithSarvam(file, { sarvam, rotate }).catch((error) => ({ error }));
     if (second.error) {

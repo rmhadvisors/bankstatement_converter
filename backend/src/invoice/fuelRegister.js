@@ -100,30 +100,81 @@ const fuelError = (code, message) => Object.assign(new Error(message), { code })
 
 // ---- reading ----
 
+// Which Gemini model does which read. Unset = today's behaviour: the first read uses GEMINI_MODEL (else
+// the default model), the second GEMINI_MODEL_HANDWRITTEN (else the same as the first), and there is no
+// arbiter. GEMINI_MODEL_FUEL_FIRST / _SECOND override those; the arbiter (a third reading of only the
+// pages whose two readings differ or whose checks fail) runs only when GEMINI_MODEL_FUEL_ARBITER is set.
+// undefined = geminiProvider's own default.
+function fuelModels(env = process.env) {
+  const first = env.GEMINI_MODEL_FUEL_FIRST || undefined;
+  const second = env.GEMINI_MODEL_FUEL_SECOND || env.GEMINI_MODEL_HANDWRITTEN || undefined;
+  return { first, second, arbiter: env.GEMINI_MODEL_FUEL_ARBITER || null };
+}
+
+// Pages worth a third reading: the two readings differ (or disagree on what the page is), or a check on
+// the page's rows fails (unreadable cell, meter - pump test, cumulative chain).
+function disputedPages(reading) {
+  const merged = mergeReads(reading);
+  const pages = new Set(merged.filter((p) => p.rows?.some((r) => r.alt) || p.rates?.some((l) => "alt" in l) || p.otherClass).map((p) => p.page));
+  try {
+    // year only decides which days exist (month from the page headings); the real year is chosen later.
+    const built = buildFuelRegister({ pages: merged }, { year: 2026 });
+    const pageOf = new Map(built.tables.map((t) => [t.item, t.page]));
+    for (const f of built.flags) if (pageOf.has(f.product)) pages.add(pageOf.get(f.product));
+  } catch {
+    // headings unreadable: only the pages with differing readings go to the arbiter
+  }
+  return [...pages].sort((a, b) => a - b);
+}
+
+// reading: first + second readings of every page; images: the page images. Reads each disputed page a
+// third time with the arbiter model -> { pages, usage }. Never throws for one failed page.
+async function arbitratePages(reading, images, arbiter) {
+  const usage = [];
+  const pages = [];
+  await Promise.all(
+    disputedPages(reading).map(async (number) => {
+      try {
+        pages.push(await readOnePage(arbiter, FIRST_PROMPT, images[number - 1], number, images.length, usage));
+      } catch (error) {
+        if (error.status === 429) throw error; // a rate limit / spending cap is not a page problem
+        pages.push({ page: number, failed: error.code ?? "error" });
+      }
+    }),
+  );
+  return { pages: pages.sort((a, b) => a.page - b.page), usage };
+}
+
+async function readOnePage(llm, system, image, number, total, usage) {
+  const content = [
+    { type: "image", source: { type: "base64", media_type: image.mediaType, data: Buffer.from(image.data).toString("base64") } },
+    { type: "text", text: `This is page ${number} of ${total} of the register. Transcribe it.` },
+  ];
+  const { text, usage: used } = await llm.complete({ system, messages: [{ role: "user", content }], responseSchema: REGISTER_SCHEMA });
+  usage.push(used);
+  let page;
+  try {
+    page = JSON.parse(text).pages?.[0];
+  } catch {
+    page = null;
+  }
+  if (!page) throw fuelError("FUEL_REGISTER_BAD_REPLY", `The reader's answer for page ${number} was not usable.`);
+  return { ...page, page: number };
+}
+
 // file: { path }. Every page is read once (all pages), then register and rates pages a second time with
-// another prompt (and GEMINI_MODEL_HANDWRITTEN when set). Returns the raw reading plus the page images
-// (for the review screen) and how many Gemini calls were made. One call per page: a register page is
-// ~160 handwritten numbers and the model reads them more accurately alone.
-async function readFuelRegister(file, { provider = geminiProvider(), secondProvider = geminiProvider({ model: process.env.GEMINI_MODEL_HANDWRITTEN || undefined }) } = {}) {
+// another prompt (models: see fuelModels). Returns the raw reading plus the page images (for the review
+// screen) and how many Gemini calls were made. One call per page: a register page is ~160 handwritten
+// numbers and the model reads them more accurately alone.
+async function readFuelRegister(file, { provider, secondProvider, arbiterProvider } = {}) {
+  const models = fuelModels();
+  provider ??= geminiProvider({ model: models.first });
+  secondProvider ??= geminiProvider({ model: models.second });
+  arbiterProvider ??= models.arbiter ? geminiProvider({ model: models.arbiter }) : null;
   const prepared = await prepareInvoiceFile(file.path, { longSide: 3000 });
   if (prepared.kind !== "images") throw fuelError("FUEL_REGISTER_NOT_SCANNED", "The fuel sales register is expected to be a scanned PDF (page images).");
   const usage = [];
-  const readPage = async (llm, system, image, number) => {
-    const content = [
-      { type: "image", source: { type: "base64", media_type: image.mediaType, data: Buffer.from(image.data).toString("base64") } },
-      { type: "text", text: `This is page ${number} of ${prepared.images.length} of the register. Transcribe it.` },
-    ];
-    const { text, usage: used } = await llm.complete({ system, messages: [{ role: "user", content }], responseSchema: REGISTER_SCHEMA });
-    usage.push(used);
-    let page;
-    try {
-      page = JSON.parse(text).pages?.[0];
-    } catch {
-      page = null;
-    }
-    if (!page) throw fuelError("FUEL_REGISTER_BAD_REPLY", `The reader's answer for page ${number} was not usable.`);
-    return { ...page, page: number };
-  };
+  const readPage = (llm, system, image, number) => readOnePage(llm, system, image, number, prepared.images.length, usage);
 
   const first = await Promise.all(prepared.images.map((image, i) => readPage(provider, FIRST_PROMPT, image, i + 1)));
   // The lubricant page (and any other page only classified as "other") is not read again.
@@ -131,10 +182,18 @@ async function readFuelRegister(file, { provider = geminiProvider(), secondProvi
   const second = await Promise.all(
     again.map((p) => readPage(secondProvider, SECOND_PROMPT, prepared.images[p.page - 1], p.page).catch((error) => ({ page: p.page, failed: error.code ?? "error" }))),
   );
+  const reading = { pages: first, second: { pages: second } };
+  let arbiterCalls = 0;
+  if (arbiterProvider) {
+    const third = await arbitratePages(reading, prepared.images, arbiterProvider);
+    reading.arbiter = { pages: third.pages };
+    arbiterCalls = third.pages.length;
+    usage.push(...third.usage);
+  }
   return {
-    reading: { pages: first, second: { pages: second } },
+    reading,
     images: prepared.images,
-    calls: { first: first.length, second: again.length, total: first.length + again.length },
+    calls: { first: first.length, second: again.length, ...(arbiterProvider ? { arbiter: arbiterCalls } : {}), total: first.length + again.length + arbiterCalls },
     usage,
   };
 }
@@ -205,6 +264,24 @@ function mergeReads(reading) {
       for (const line of page.rates ?? []) if ((line.rate ?? null) !== (rates.get(line.product) ?? null)) line.alt = rates.get(line.product) ?? null;
     }
   }
+  // Third reading (arbiter): its value where it differs from the first reading, shown with the other two.
+  const third = new Map((reading.arbiter?.pages ?? []).filter((p) => !p.failed).map((p) => [p.page, p]));
+  for (const page of pages) {
+    const arb = third.get(page.page);
+    if (!arb) continue;
+    if (page.kind === "register") {
+      const rows = new Map((arb.rows ?? []).map((r) => [r.day, r]));
+      for (const row of page.rows ?? []) {
+        const there = rows.get(row.day);
+        const diff = {};
+        for (const col of COLS) if (there && (row[col] ?? null) !== (there[col] ?? null)) diff[col] = there[col] ?? null;
+        if (Object.keys(diff).length) row.arb = diff;
+      }
+    } else if (page.kind === "rates") {
+      const rates = new Map((arb.rates ?? []).map((r) => [r.product, r.rate ?? null]));
+      for (const line of page.rates ?? []) if (rates.has(line.product) && (line.rate ?? null) !== rates.get(line.product)) line.arb = rates.get(line.product);
+    }
+  }
   return pages;
 }
 
@@ -257,7 +334,7 @@ function buildFuelRegister(reading, { party = "JIGEESHA AUTO SERVICES", narratio
   // Rates: read value, second reading, and the review screen's edit.
   const rates = {};
   for (const page of pages.filter((p) => p.kind === "rates")) {
-    for (const line of page.rates ?? []) if (present(line.rate)) rates[line.product] = { read: line.rate, alt: line.alt, value: line.rate };
+    for (const line of page.rates ?? []) if (present(line.rate)) rates[line.product] = { read: line.rate, alt: line.alt, arb: line.arb, value: line.rate };
     if (page.secondRead === "missing") flag({ kind: "single-read", reason: `The second reading of the rates page (page ${page.page}) failed, so the rates were read once only.` });
   }
   for (const code of PRODUCT_CODES) {
@@ -265,7 +342,8 @@ function buildFuelRegister(reading, { party = "JIGEESHA AUTO SERVICES", narratio
     if (edited) rates[code] = { ...rates[code], value: ratesOverride[code], edited: true };
     const entry = rates[code];
     if (entry && !edited && entry.alt !== undefined) {
-      flag({ kind: "rate-disagree", rateKey: code, reason: `The ${RATE_LABELS[code]} rate reads ${show(entry.read)} on the first reading and ${show(entry.alt)} on the second.`, values: { first: entry.read, second: entry.alt } });
+      const arb = entry.arb !== undefined ? { arbiter: entry.arb } : null;
+      flag({ kind: "rate-disagree", rateKey: code, reason: `The ${RATE_LABELS[code]} rate reads ${show(entry.read)} on the first reading and ${show(entry.alt)} on the second.${arb ? ` A third reading says ${show(arb.arbiter)}.` : ""}`, values: { first: entry.read, second: entry.alt, ...arb } });
     }
   }
 
@@ -313,7 +391,8 @@ function buildFuelRegister(reading, { party = "JIGEESHA AUTO SERVICES", narratio
       for (const col of row.unreadable ?? []) if (!edited.has(col)) raise({ kind: "unreadable", col, cells: [[day, col]], reason: `${where}: could not read ${COL_LABEL[col]}.` });
       for (const col of COLS) {
         if (row.alt && col in row.alt && !edited.has(col)) {
-          raise({ kind: "disagree", col, cells: [[day, col]], values: { first: row[col] ?? null, second: row.alt[col] }, reason: `${where}: ${COL_LABEL[col]} reads ${show(row[col])} on the first reading and ${show(row.alt[col])} on the second.` });
+          const arb = row.arb && col in row.arb ? { arbiter: row.arb[col] } : null;
+          raise({ kind: "disagree", col, cells: [[day, col]], values: { first: row[col] ?? null, second: row.alt[col], ...arb }, reason: `${where}: ${COL_LABEL[col]} reads ${show(row[col])} on the first reading and ${show(row.alt[col])} on the second.${arb ? ` A third reading says ${show(arb.arbiter)}.` : ""}` });
         }
       }
       if (present(meter) && present(pump) && present(net) && meter - pump !== net) {
@@ -421,4 +500,4 @@ function buildFuelRegister(reading, { party = "JIGEESHA AUTO SERVICES", narratio
 
 const dayLabel = (product, day) => `${product}, day ${day}`;
 
-export { FUEL_PARTIES, REGISTER_SCHEMA, applyMapping, buildFuelRegister, financialYearToYear, loadReading, mergeReads, readFuelRegister };
+export { FUEL_PARTIES, REGISTER_SCHEMA, applyMapping, arbitratePages, buildFuelRegister, disputedPages, financialYearToYear, fuelModels, loadReading, mergeReads, readFuelRegister };
