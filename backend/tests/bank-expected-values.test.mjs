@@ -30,12 +30,12 @@ const hasTesseract = (() => {
   }
 })();
 
-// expected: { date?, particulars?, chequeNo?, withdrawal?, deposit?, balance? } -- only the listed fields are compared.
+// expected: { date?, particulars?, chequeNo?, tranId?, withdrawal?, deposit?, balance? } -- only the listed fields are compared.
 function assertRow(row, expected, label) {
   assert.ok(row, `${label}: row not found`);
   if (expected.date !== undefined) assert.equal(iso(row), expected.date, `${label} date`);
   if (expected.particulars !== undefined) assert.equal(normalizeDescription(row.particulars), normalizeDescription(expected.particulars), `${label} description`);
-  for (const key of ["chequeNo", "withdrawal", "deposit", "balance"]) if (expected[key] !== undefined) assert.equal(row[key] ?? null, expected[key], `${label} ${key}`);
+  for (const key of ["chequeNo", "tranId", "withdrawal", "deposit", "balance"]) if (expected[key] !== undefined) assert.equal(row[key] ?? null, expected[key], `${label} ${key}`);
 }
 
 const specGate = fixtureGate("bank/client-statements.json", specPath);

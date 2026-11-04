@@ -29,7 +29,7 @@ test("a balance-chain correction is never silent: it becomes a needs_review reas
   const review = reviewStatus({ transactions, reconciliation: {}, logs: [] });
   assert.equal(review.status, "needs_review");
   assert.deepEqual(review.reasons, [
-    "Row 3 (03-08-2026): printed credit 50.00 changed to debit 50.00 to fit the balance; please verify against the PDF.",
+    "1 row: printed credit changed to debit to fit the balance; please verify against the PDF (first: row 3; amounts affected 50.00)",
   ]);
 });
 

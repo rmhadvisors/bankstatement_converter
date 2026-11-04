@@ -1,4 +1,5 @@
 import { roundMoney } from "./parsers/common.js";
+import { describeGroup, findInsaneAmounts } from "./guards.js";
 
 function moneyOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -17,10 +18,11 @@ function transactionKey(row) {
   ].join("|");
 }
 
-function getOpeningBalance(lines, transactions) {
+// skipEdge: the first row's amount was rejected (guards.js), so the opening balance must not be derived from it.
+function getOpeningBalance(lines, transactions, { skipEdge = false } = {}) {
   const chronological = isChronological(transactions);
   const edge = chronological ? transactions[0] : transactions[transactions.length - 1];
-  if (edge?.balance !== null && edge?.balance !== undefined) {
+  if (!skipEdge && edge?.balance !== null && edge?.balance !== undefined) {
     const withdrawal = Number(edge.withdrawal || 0);
     const deposit = Number(edge.deposit || 0);
     return roundMoney(Number(edge.balance) + withdrawal - deposit);
@@ -301,10 +303,14 @@ function buildValidationReport(statement, lines = []) {
     }
   }
 
-  const openingBalance = getOpeningBalance(lines, transactions);
-  const calculated = calculateTransactionTotals(transactions);
   const printed = statement.printedTotals || null;
   const chronological = isChronological(transactions);
+  // Rule 6: amounts that cannot be real (more than 11 digits, or over 100 x the largest balance).
+  const rejectedAmounts = findInsaneAmounts(transactions);
+  const edgeRow = chronological ? 1 : transactions.length;
+  const openingBalance =
+    moneyOrNull(printed?.openingBalance) ?? getOpeningBalance(lines, transactions, { skipEdge: rejectedAmounts.some((item) => item.row === edgeRow) });
+  const calculated = calculateTransactionTotals(transactions);
   const rowClosingBalance = moneyOrNull(
     chronological ? transactions.at(-1)?.balance : transactions[0]?.balance,
   );
@@ -382,6 +388,7 @@ function buildValidationReport(statement, lines = []) {
     reviewRows,
     issues,
     warnings,
+    ...(rejectedAmounts.length ? { rejectedAmounts } : {}),
     status: issues.length === 0 ? "PASS" : "FAIL",
   };
 }
@@ -412,6 +419,21 @@ function removeDuplicateTransactions(transactions, logs = []) {
 // opening + credits - debits misses the closing balance, the rows' totals differ from the bank's
 // printed totals, or a parser's own reconciliation against the statement failed. Such a file is
 // still returned, but must never look like a normal success.
+// "printed credit 50.00 changed to debit 50.00 to fit the balance; please verify ..." ->
+// { kind: "printed credit changed to debit to fit the balance", amount: 50 } (the new amount; the old one if none is left)
+function parseCorrection(text) {
+  const [head, tail = ""] = text.split(" changed to ");
+  const numbers = (part) => (part.match(/\d[\d,]*\.\d{2}/g) || []).map((n) => Number(n.replace(/,/g, "")));
+  const change = tail.split(" to fit the balance")[0];
+  const amounts = numbers(change).length ? numbers(change) : numbers(head);
+  return {
+    kind: `${head.replace(/ ?\d[\d,]*\.\d{2}/g, "")} changed to ${change.replace(/ ?\d[\d,]*\.\d{2}/g, "")} to fit the balance`,
+    amount: amounts.reduce((total, value) => total + value, 0),
+  };
+}
+
+const sideOf = (field) => (field === "withdrawal" ? "debit" : field === "deposit" ? "credit" : "balance");
+
 function reviewStatus(statement) {
   const reasons = [];
   const report = statement.reconciliation || {};
@@ -431,17 +453,55 @@ function reviewStatus(statement) {
       }
     }
   }
+  // Balance-chain corrections: counted and shown, but one line per kind (count, first row, amounts affected).
+  const corrections = new Map();
   (statement.transactions || []).forEach((row, index) => {
     if (!row.balanceCorrection) return;
-    const date = row.date instanceof Date ? ` (${row.date.toISOString().slice(0, 10).split("-").reverse().join("-")})` : "";
-    reasons.push(`Row ${index + 1}${date}: ${row.balanceCorrection}.`);
+    const { kind, amount } = parseCorrection(row.balanceCorrection);
+    corrections.set(kind, [...(corrections.get(kind) ?? []), { row: index + 1, amount }]);
   });
+  for (const [kind, items] of corrections) reasons.push(describeGroup(`${kind}; please verify against the PDF`, items));
+
+  // Rule 6: rejected amounts, one line per field and reason.
+  const rejected = new Map();
+  for (const item of report.rejectedAmounts || []) {
+    const key = `${sideOf(item.field)} amount rejected: ${item.reason}`;
+    rejected.set(key, [...(rejected.get(key) ?? []), { row: item.row, amount: item.value }]);
+  }
+  for (const [what, items] of rejected) reasons.push(describeGroup(what, items));
+
+  // Rule 5: the printed summary's counts, when the parser read them.
+  if (printed) {
+    const rows = statement.transactions || [];
+    for (const [key, label, count] of [["debitCount", "debits", rows.filter((row) => row.withdrawal).length], ["creditCount", "credits", rows.filter((row) => row.deposit).length]]) {
+      if (Number.isFinite(printed[key]) && printed[key] !== count) reasons.push(`The statement prints ${printed[key]} ${label} but ${count} were read.`);
+    }
+  }
   // Parser-level checks against the statement's own summary (BCCB, Apna Sahakari, IDBI, ICICI ...).
   for (const log of statement.logs || []) {
     if (log.level === "error" && log.stage === "parse" && !reasons.includes(log.message)) reasons.push(log.message);
   }
 
-  return { status: reasons.length ? "needs_review" : "ok", reasons };
+  // Rule 7: a layout no parser knows. Never "ok" without a passing check: it needs a balance chain that holds
+  // and (where printed) a summary that matches; passing earns a visible note, failing a specific reason.
+  const notes = [];
+  if (statement.layout?.known === false) {
+    const headers = (statement.layout.headers || []).join(", ") || "none found";
+    const invite = "send this PDF to add it as a known layout";
+    const hasBalances = (statement.transactions || []).some((row) => moneyOrNull(row.balance) !== null);
+    if (reasons.length) {
+      reasons.unshift(`Layout not recognised (headers found: ${headers}) and the result does not reconcile - see the reasons below; ${invite}.`);
+    } else if (!hasBalances) {
+      reasons.push(`Layout not recognised (headers found: ${headers}) and there is no balance column to verify the rows against; ${invite}.`);
+    } else {
+      const note = `Layout not recognised - verified by balance chain only; ${invite}`;
+      notes.push(note);
+      // Visible in the workbook's Logs sheet too (excelWriter lists statement.logs).
+      if (Array.isArray(statement.logs) && !statement.logs.some((log) => log.message === note)) statement.logs.push({ level: "info", stage: "validation", message: note });
+    }
+  }
+
+  return { status: reasons.length ? "needs_review" : "ok", reasons, ...(notes.length ? { notes } : {}) };
 }
 
 export {
