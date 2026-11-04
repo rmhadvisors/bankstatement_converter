@@ -8,10 +8,13 @@ import { convertPdfToStatement } from "../src/parsers/converter.js";
 import { buildWorkbookBuffer } from "../src/parsers/excelWriter.js";
 import { parseAmountText } from "../src/parsers/hdfcWordBoxParser.js";
 import { parseTesseractTsv } from "../src/parsers/ocrExtractor.js";
+import { fixtureGate } from "./helpers/fixtureGate.mjs";
 
 // 94 MB / 231 pages, too big for the repo. Vector-drawn text (no text layer) except June/July,
 // 12 monthly HDFC statements in two layouts.
-const SAMPLE = process.env.HDFC_MERGED_PDF || "C:/Users/HP/Downloads/APRIL 25 TO MAR 26 MERGED.pdf";
+// Path: FIXTURE_HDFC_MERGED (HDFC_MERGED_PDF still works), else the Downloads copy.
+const SAMPLE = process.env.FIXTURE_HDFC_MERGED || process.env.HDFC_MERGED_PDF || "C:/Users/HP/Downloads/APRIL 25 TO MAR 26 MERGED.pdf";
+const gate = fixtureGate("hdfc-merged APRIL 25 TO MAR 26 MERGED.pdf (env FIXTURE_HDFC_MERGED)", SAMPLE);
 
 test("OCR amount cleanup keeps sign, needs exactly two decimals", () => {
   assert.equal(parseAmountText("853,284.69)"), 853284.69);
@@ -33,8 +36,9 @@ test("tesseract TSV parsing keeps word boxes only", () => {
 
 test(
   "HDFC merged Apr 2025 - Mar 2026 (231 pages, two layouts) reconciles every month",
-  { skip: !existsSync(SAMPLE), timeout: 60 * 60 * 1000 },
+  { skip: gate.skip, timeout: 60 * 60 * 1000 },
   async () => {
+    gate.assertPresent();
     const statement = await convertPdfToStatement(SAMPLE);
     const real = statement.transactions;
 

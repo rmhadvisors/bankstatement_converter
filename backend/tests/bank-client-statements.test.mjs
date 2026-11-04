@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { convertPdfToStatement } from "../src/parsers/converter.js";
+import { fixtureGate } from "./helpers/fixtureGate.mjs";
 
 // Real client statements live in the git-ignored fixtures/bank/ folder; each test skips without its file.
 // Expected figures are the statement's own printed totals.
@@ -92,8 +93,9 @@ const hasTesseract = (() => {
 
 for (const expected of CASES) {
   const path = fixture(expected.file);
-  const skip = !existsSync(path) ? `needs fixtures/bank/${expected.file}` : expected.needsTesseract && !hasTesseract ? "needs the tesseract binary" : false;
-  test(`client statement ${expected.file}: every row, printed totals and closing balance`, { skip }, async () => {
+  const gate = fixtureGate(`bank/${expected.file}`, path, { tool: expected.needsTesseract ? ["tesseract", hasTesseract] : null });
+  test(`client statement ${expected.file}: every row, printed totals and closing balance`, { skip: gate.skip }, async () => {
+    gate.assertPresent();
     const statement = await convertPdfToStatement(path);
     const rows = statement.transactions;
 
