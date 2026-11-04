@@ -93,8 +93,9 @@ test("BCCB account statement: column-based debit/credit, wrapped descriptions, '
   assert.equal(s.reconciliation.openingBalance, 10000, "derived from the first row, equals the printed opening");
   assert.deepEqual([s.printedTotals.withdrawal, s.printedTotals.deposit, s.printedTotals.closingBalance], [1000.94, 485, 9484.06]);
   assert.deepEqual(s.transactions.map((t) => [t.withdrawal, t.deposit]), [[null, 480], [1000, null], [0.8, null], [0.14, null], [null, 5]]);
-  assert.equal(s.transactions[0].particulars, "UPI/ CR/120000000001/ TEST PAYER/");
-  assert.equal(s.transactions[0].chequeNo, "120000000001", "the reference number is the cheque/ref column, never an amount");
+  assert.equal(s.transactions[0].particulars, "UPI/CR/120000000001/TEST PAYER/", "no space after a line that ends in '/'");
+  assert.deepEqual([s.transactions[0].tranId, s.transactions[0].chequeNo], ["120000000001", null], "the Reference Number is the Tran ID, never an amount; no cheque number here");
+  assert.equal(s.transactions[2].tranId, "SCREF00000000001");
   assert.equal(s.transactions[2].particulars, "SMS CHARGE", "the page footer after a row is not added to its description");
   assert.equal(money(s.transactions.reduce((n, t) => n + (t.withdrawal ?? 0), 0)), 1000.94);
 });

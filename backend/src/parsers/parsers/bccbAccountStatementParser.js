@@ -1,4 +1,5 @@
 import { clean, parseAmount, roundMoney } from "./common.js";
+import { joinWrappedLines } from "../guards.js";
 
 // Bassein Catholic Co-op Bank (BCCB) internet-banking "Account Statement" PDF. Columns:
 //   Transaction Date | Description | Reference Number | Value Date | Debit | Credit | Balance
@@ -6,7 +7,9 @@ import { clean, parseAmount, roundMoney } from "./common.js";
 //   description sits on the dated line, e.g. "UPI/", the rest wraps below it).
 // - Only ONE of Debit / Credit is printed per row, in its own column, so which one it is comes from the
 //   column x-position (nearest header), not from the amount's order. The balance is always the last amount.
-// - The reference number (12 digits, or "BACB...") has no decimals, so it is never mistaken for an amount.
+// - The reference number (12 digits, or "BACB...") has no decimals, so it is never mistaken for an amount. It is
+//   the row's Tran ID (text, as printed); chequeNo stays empty, this layout has no separate cheque column.
+// - Wrapped description lines are joined with no space after a line that ends in "/" (guards.joinWrappedLines).
 // - Small charges are printed without the leading zero (".80", ".14"), which the shared amountItems()
 //   would skip; amounts are read here with a pattern that allows it.
 // - Page headers/footers sit left of the description column and are never added to a description.
@@ -53,8 +56,9 @@ function parseRow(entry, columns) {
   const reference = items.slice(1).find((item) => inColumn(item, DESCRIPTION_X[1], 300) && !amounts.includes(item));
   return {
     date,
-    particulars: clean(items.slice(1).filter((item) => inColumn(item, DESCRIPTION_X[0], DESCRIPTION_X[1])).map((item) => item.text).join(" ")),
-    chequeNo: reference ? clean(reference.text) : null,
+    parts: [clean(items.slice(1).filter((item) => inColumn(item, DESCRIPTION_X[0], DESCRIPTION_X[1])).map((item) => item.text).join(" "))],
+    tranId: reference ? clean(reference.text) : null,
+    chequeNo: null,
     withdrawal: isDebit ? Math.abs(amount.value) : null,
     deposit: isDebit ? null : Math.abs(amount.value),
     balance: roundMoney(balance.value),
@@ -106,8 +110,13 @@ function parseBccbAccountStatementTransactions(lines) {
     // Wrapped description: only text in the description column, never page headers/footers.
     const items = entry.items || [];
     if (current && items.length && items.every((item) => item.x >= DESCRIPTION_X[0] && item.x < DESCRIPTION_X[1])) {
-      current.particulars = clean(`${current.particulars} ${text}`);
+      current.parts.push(text);
     }
+  }
+
+  for (const row of transactions) {
+    row.particulars = joinWrappedLines(row.parts);
+    delete row.parts;
   }
 
   const summary = parseSummary(lines);

@@ -44,7 +44,7 @@ const cases = existsSync(specPath) ? JSON.parse(readFileSync(specPath, "utf8")).
 
 for (const c of cases) {
   const path = join(dir, c.file);
-  const gate = fixtureGate(`bank/${c.file}`, path, { tool: c.needsTesseract ? ["tesseract", hasTesseract] : null });
+  const gate = fixtureGate(`bank/${c.file}`, path, { tool: c.needsTesseract ? ["the tesseract binary", hasTesseract] : null });
   const name = `expected values ${c.file}${c.pending ? ` (pending: ${c.pending})` : ""}`;
   test(name, { skip: gate.skip, todo: c.pending || false, timeout: 10 * 60 * 1000 }, async () => {
     gate.assertPresent();

@@ -7,9 +7,9 @@ import { existsSync } from "node:fs";
 const REQUIRED = process.env.REQUIRE_FIXTURES === "1";
 const skipped = [];
 
-// tool: ["tesseract", true|false] -- a binary the test needs besides the file.
+// tool: ["the tesseract binary", true|false] -- anything else the test needs besides the file (a binary, an env var).
 function fixtureGate(name, path, { tool = null } = {}) {
-  const missing = !existsSync(path) ? `needs fixtures/${name}` : tool && !tool[1] ? `needs the ${tool[0]} binary` : null;
+  const missing = !existsSync(path) ? `needs fixtures/${name}` : tool && !tool[1] ? `needs ${tool[0]}` : null;
   if (missing && !REQUIRED) skipped.push(name);
   return {
     skip: missing && !REQUIRED ? missing : false,

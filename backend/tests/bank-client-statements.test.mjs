@@ -93,7 +93,7 @@ const hasTesseract = (() => {
 
 for (const expected of CASES) {
   const path = fixture(expected.file);
-  const gate = fixtureGate(`bank/${expected.file}`, path, { tool: expected.needsTesseract ? ["tesseract", hasTesseract] : null });
+  const gate = fixtureGate(`bank/${expected.file}`, path, { tool: expected.needsTesseract ? ["the tesseract binary", hasTesseract] : null });
   test(`client statement ${expected.file}: every row, printed totals and closing balance`, { skip: gate.skip }, async () => {
     gate.assertPresent();
     const statement = await convertPdfToStatement(path);
