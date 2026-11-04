@@ -18,7 +18,7 @@ const MONTH_SRC = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*";
 
 // One date token in any layout Indian card issuers print: 12/03/2024, 12-03-24, 12/03/2024 14:05:33,
 // 12 Mar 24, 12-Mar-2024, 22/Jul/2026, 12 March, 2024, March 12, 2024.
-const DATE_SRC = String.raw`\d{1,2}[/-]\d{1,2}[/-](?:\d{4}|\d{2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?|\d{1,2}[ /-]${MONTH_SRC}[ ,/-]+(?:\d{4}|\d{2})|${MONTH_SRC}\s+\d{1,2},?\s+\d{4}`;
+const DATE_SRC = String.raw`\d{1,2}[/-]\d{1,2}[/-](?:\d{4}|\d{2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?|\d{1,2}[ /-]${MONTH_SRC}[ ,/-]+(?:\d{4}|\d{2})|\d{1,2}[ /-]${MONTH_SRC}[ ,/-]*['’]\d{2}|${MONTH_SRC}\s+\d{1,2},?\s+\d{4}`;
 const AMOUNT_NUMBER_SRC = String.raw`(?:\d{1,3}(?:,\d{2,3})+|\d+)\.\d{2}`;
 // Some PDFs (IDFC FIRST) embed the rupee sign in a font that extracts as a lone "r".
 const CURRENCY_SRC = String.raw`₹|Rs\.?|INR|r`;
@@ -40,6 +40,13 @@ function parseCcDate(raw) {
   if (match) return makeDate(match[3], Number(match[2]) - 1, match[1]);
 
   match = text.match(/^(\d{1,2})[ /-]([A-Za-z]{3,9})[ ,/-]+(\d{4}|\d{2})$/);
+  if (match) {
+    const month = MONTHS[match[2].slice(0, 3).toLowerCase()];
+    return month === undefined ? null : makeDate(match[3], month, match[1]);
+  }
+
+  // "13 Apr '26": the apostrophe stands for 20, so the year is 2000 + yy.
+  match = text.match(/^(\d{1,2})[ /-]([A-Za-z]{3,9})[ ,/-]*['’](\d{2})$/);
   if (match) {
     const month = MONTHS[match[2].slice(0, 3).toLowerCase()];
     return month === undefined ? null : makeDate(match[3], month, match[1]);

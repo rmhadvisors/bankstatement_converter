@@ -100,7 +100,7 @@ const COLUMN_FIELDS = [
 const LABEL_ALIGN = 15; // a wrapped (possibly centred) label line sits under its column's x
 const VALUE_ALIGN = 40; // a value (and its "r"/"₹" glyph) sits under its column label
 // Everything after this is terms, schedules of charges and worked examples -- never statement data.
-const END_OF_STATEMENT_RE = /\*{2,}\s*end\s+of\s+statement\s*\*{2,}/i;
+const END_OF_STATEMENT_RE = /\*{2,}\s*end\s+of\s+(?:statement|transaction\s+summary)\s*\*{2,}/i;
 // Boilerplate blocks whose numbers ("Rs. 25000.00", "3.75% p.m.") must not feed summary fields.
 const BOILERPLATE_RE =
   /important\s+(?:message|information)|schedule\s+of\s+charges|terms\s*(?:and|&)\s*conditions|finance\s+charge\s+calculation|minimum\s+amount\s+due\s+calculation/i;
@@ -408,12 +408,16 @@ function parseTransactionLine(text, options = {}, layout = {}, allowEmpty = fals
   const date = parseCcDate(match[1]);
   if (!date) return null;
 
+  // A table headed "... Amount (INR) | Debit/Credit" prints the word AFTER the amount ("... ₹ 1,234.50 Debit"). The
+  // word is the only direction signal (signs are ignored) and there is no running balance column.
+  const rowTokens = match[3].split(" ");
+  const typeAfter = layout.typeAfter && /^(?:debit|credit)$/i.test(rowTokens.at(-1) || "") ? rowTokens.pop().toLowerCase() : null;
   // Read from the right: "... Debit 550.00 2,90,464.50" is TYPE AMOUNT BALANCE.
-  const rightmost = takeTrailingAmount(match[3].split(" "));
+  const rightmost = takeTrailingAmount(rowTokens);
   if (!rightmost) return null;
   let taken = rightmost;
   let balance = null;
-  const second = takeTrailingAmount(rightmost.rest);
+  const second = typeAfter ? null : takeTrailingAmount(rightmost.rest);
   if (second && (layout.balance || TYPE_WORD_RE.test(second.rest.at(-1) || ""))) {
     balance = rightmost.type === "credit" ? -rightmost.amount : rightmost.amount;
     taken = second;
@@ -422,7 +426,7 @@ function parseTransactionLine(text, options = {}, layout = {}, allowEmpty = fals
   }
 
   const tokens = taken.rest;
-  let type = taken.type;
+  let type = typeAfter ?? taken.type;
   const hasTypeColumn = layout.type || balance !== null;
   if (hasTypeColumn && tokens.length > 1 && TYPE_WORD_RE.test(tokens.at(-1))) {
     type = /^(?:credit|cr)$/i.test(tokens.pop()) ? "credit" : "debit";
@@ -572,6 +576,7 @@ function parseCardStatement(allLines, options = {}) {
         layout = {
           balance: /\bbalance\b/i.test(text),
           type: /\btype\b|\bdr\s*\/\s*cr\b/i.test(text),
+          typeAfter: /\bamount\b.*\bdebit\s*\/\s*credit\b/i.test(text),
           emi: /\bemi\s+eligib/i.test(text),
           currency: /\bcurrency\b/i.test(text),
           ref: /\bref(?:erence)?\.?\s*(?:no|number)\b/i.test(text),

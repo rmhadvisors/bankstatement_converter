@@ -29,6 +29,8 @@ await import("./creditcard/hdfc45.test.mjs");
 await import("./creditcard/idfc.test.mjs");
 await import("./creditcard/axis.test.mjs");
 await import("./creditcard/server.test.mjs");
+await import("./creditcard/axis-apostrophe.test.mjs");
+await import("./creditcard/client-cards.test.mjs");
 
 await import("./hdfc-merged-apr25-mar26.test.mjs");
 await import("./bank-client-statements.test.mjs");
