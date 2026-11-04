@@ -20,14 +20,27 @@ test("balance-chain corrections: one line per kind with the count, the first row
     row(4, "C", 30, null, 880), // printed debit, balance rose: debit -> credit
     row(5, "D", null, 25, 825), // credit -> debit (the balance fell by 55: the corrected amount is 55, not the printed 25)
     row(6, "E", 10, null, 815), // fine
+    row(7, "F", 40, null, 770), // printed debit 40, the balance fell by 45: only the amount is rewritten
   ];
   correctDebitCreditByBalance(transactions);
-  const { review: result } = review({ transactions });
+  const { review: result, statement } = review({ transactions });
   assert.equal(result.status, "needs_review");
   assert.deepEqual(result.reasons, [
     "3 rows: printed credit changed to debit to fit the balance; please verify against the PDF (first: row 2; amounts affected 205.00)",
     "1 row: printed debit changed to credit to fit the balance; please verify against the PDF (first: row 4; amounts affected 30.00)",
+    "1 row: printed debit amount changed to fit the balance; please verify against the PDF (first: row 7; amounts affected 45.00)",
   ]);
+  // the individual rows are not lost: each is listed in statement.logs
+  assert.deepEqual(
+    statement.logs.filter((log) => log.stage === "validation").map((log) => log.message),
+    [
+      "Row 2 (02-08-2026): printed credit 50.00 changed to debit 50.00 to fit the balance; please verify against the PDF.",
+      "Row 3 (03-08-2026): printed credit 100.00 changed to debit 100.00 to fit the balance; please verify against the PDF.",
+      "Row 4 (04-08-2026): printed debit 30.00 changed to credit 30.00 to fit the balance; please verify against the PDF.",
+      "Row 5 (05-08-2026): printed credit 25.00 changed to debit 55.00 to fit the balance; please verify against the PDF.",
+      "Row 7 (07-08-2026): printed debit 40.00 changed to debit 45.00 to fit the balance; please verify against the PDF.",
+    ],
+  );
 });
 
 test("status rules are unchanged: reasons empty = ok, no extra keys on a clean statement", () => {

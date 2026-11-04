@@ -426,10 +426,11 @@ function parseCorrection(text) {
   const numbers = (part) => (part.match(/\d[\d,]*\.\d{2}/g) || []).map((n) => Number(n.replace(/,/g, "")));
   const change = tail.split(" to fit the balance")[0];
   const amounts = numbers(change).length ? numbers(change) : numbers(head);
-  return {
-    kind: `${head.replace(/ ?\d[\d,]*\.\d{2}/g, "")} changed to ${change.replace(/ ?\d[\d,]*\.\d{2}/g, "")} to fit the balance`,
-    amount: amounts.reduce((total, value) => total + value, 0),
-  };
+  const before = head.replace(/ ?\d[\d,]*\.\d{2}/g, "");
+  const after = change.replace(/ ?\d[\d,]*\.\d{2}/g, "");
+  // Same side before and after ("printed debit" -> "debit"): only the amount was rewritten.
+  const kind = before === `printed ${after}` ? `${before} amount changed to fit the balance` : `${before} changed to ${after} to fit the balance`;
+  return { kind, amount: amounts.reduce((total, value) => total + value, 0) };
 }
 
 const sideOf = (field) => (field === "withdrawal" ? "debit" : field === "deposit" ? "credit" : "balance");
@@ -459,6 +460,10 @@ function reviewStatus(statement) {
     if (!row.balanceCorrection) return;
     const { kind, amount } = parseCorrection(row.balanceCorrection);
     corrections.set(kind, [...(corrections.get(kind) ?? []), { row: index + 1, amount }]);
+    // The aggregated line hides the individual rows, so each one is also listed in statement.logs.
+    const date = row.date instanceof Date ? ` (${row.date.toISOString().slice(0, 10).split("-").reverse().join("-")})` : "";
+    const message = `Row ${index + 1}${date}: ${row.balanceCorrection}.`;
+    if (Array.isArray(statement.logs) && !statement.logs.some((log) => log.message === message)) statement.logs.push({ level: "info", stage: "validation", message });
   });
   for (const [kind, items] of corrections) reasons.push(describeGroup(`${kind}; please verify against the PDF`, items));
 
