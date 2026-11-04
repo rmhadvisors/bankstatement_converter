@@ -35,4 +35,5 @@ await import("./bank-client-statements.test.mjs");
 await import("./bank-review-status.test.mjs");
 await import("./layout-guards.test.mjs");
 await import("./bank-validation-guards.test.mjs");
+await import("./layout-guards-generic.test.mjs");
 await import("./bank-expected-values.test.mjs");

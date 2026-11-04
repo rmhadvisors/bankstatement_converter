@@ -101,8 +101,9 @@ const firstX = (line) => (line.items?.length ? Math.min(...line.items.map((item)
 const isColumnHeader = (line) => new Set((line.items ?? []).map((item) => columnBands([item])[0].name).filter((name) => name !== "other")).size >= 3;
 
 // pages: [[{ text, items? }]]; bands: columnBands() of the header (gives the description column's left edge).
+// keepFirstPageHeader: leave page 1's header block alone (it carries the account details and the opening balance).
 // -> { lines, furniture: [removed], summary: [from the summary box to the end] }
-function stripPageFurniture(pages, { bands = [], summaryStart = /^(account summary|statement summary)\b/i } = {}) {
+function stripPageFurniture(pages, { bands = [], keepFirstPageHeader = false, summaryStart = /^(account summary|statement summary)\b/i } = {}) {
   const bodyLeft = (bands.find((band) => band.name === "description")?.x ?? null);
   // Without a description column to measure against, nothing counts as outside the body (nothing is peeled).
   const outside = (line) => bodyLeft !== null && firstX(line) !== null && firstX(line) < bodyLeft - 10;
@@ -114,13 +115,15 @@ function stripPageFurniture(pages, { bands = [], summaryStart = /^(account summa
   const furniture = [];
   const summary = [];
   let inSummary = false;
-  for (const page of pages) {
+  for (const [pageIndex, page] of pages.entries()) {
     const kept = new Array(page.length).fill(true);
     const header = page.findIndex(isColumnHeader);
     const firstData = page.findIndex(isDataLike);
     // (a) everything up to the column header and the label lines right under it ("Date"); with no column header
     // on this page, the leading lines before the first dated row, when they repeat from page to page.
-    if (header >= 0) {
+    if (keepFirstPageHeader && pageIndex === 0) {
+      // header block of page 1 stays
+    } else if (header >= 0) {
       let end = header;
       while (end + 1 < page.length && !isDataLike(page[end + 1]) && outside(page[end + 1])) end += 1;
       for (let i = 0; i <= end; i += 1) kept[i] = false;
@@ -143,6 +146,9 @@ function stripPageFurniture(pages, { bands = [], summaryStart = /^(account summa
   }
   return { lines, furniture, summary };
 }
+
+// The header cells of a line, as text: the "headers found" shown for a layout nobody recognised.
+const headerCells = (line) => (line.items ?? []).map((item) => clean(item.text)).filter(Boolean);
 
 // ---- rule 5: one review line per kind of problem ----
 
@@ -171,7 +177,9 @@ export {
   describeGroup,
   findInsaneAmounts,
   groupRows,
+  headerCells,
   inAmountColumns,
+  isColumnHeader,
   isAmountText,
   isSaneAmount,
   joinWrappedLines,

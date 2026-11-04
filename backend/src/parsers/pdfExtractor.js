@@ -27,7 +27,7 @@ function clusterTextItems(items) {
       clusters.push(cluster);
     }
 
-    cluster.items.push({ x, text });
+    cluster.items.push({ x, text, width: item.width });
     cluster.y = (cluster.y * (cluster.items.length - 1) + y) / cluster.items.length;
   }
 
