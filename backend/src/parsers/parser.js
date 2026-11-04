@@ -26,6 +26,7 @@ import { isStandardCharteredLayout, parseStandardCharteredTransactions } from ".
 import { isVvsbLayout, parseVvsbTransactions } from "./vvsbParser.js";
 import { isHdfcOcrLayout, parseHdfcOcrStatement } from "./hdfcOcrParser.js";
 import { isHdfcWordBoxLayout, parseHdfcWordBoxStatement } from "./hdfcWordBoxParser.js";
+import { isHdfcStatementLayout, parseHdfcStatementTransactions } from "./parsers/hdfcStatementParser.js";
 import { isPassbookLayout, parsePassbookStatement } from "./passbookParser.js";
 import { buildValidationReport, correctDebitCreditByBalance, removeDuplicateTransactions } from "./validation.js";
 import { detectBank } from "./parsers/detector.js";
@@ -40,6 +41,7 @@ import { parseFederalOcrTransactions } from "./parsers/federalOcrParser.js";
 import { isIdbiLayout, parseIdbiTransactions } from "./parsers/idbiParser.js";
 import { isIdbiLedgerLayout, parseIdbiLedgerTransactions } from "./parsers/idbiLedgerParser.js";
 import { isBccbLedgerLayout, parseBccbLedgerTransactions } from "./parsers/bccbLedgerParser.js";
+import { isBccbAccountStatementLayout, parseBccbAccountStatementTransactions } from "./parsers/bccbAccountStatementParser.js";
 import { isApnaSahakariLayout, parseApnaSahakariTransactions } from "./parsers/apnaSahakariParser.js";
 import { isFinacleTransactionInquiryLayout, parseFinacleTransactions } from "./parsers/finacleOcrParser.js";
 import { isJanaLayout, parseJanaTransactions } from "./parsers/janaParser.js";
@@ -1184,6 +1186,19 @@ function parseStatement(extraction) {
         })),
       );
     }
+  } else if (isBccbAccountStatementLayout(lines)) {
+    detectedFormat = "bccb-account-statement";
+    const bccb = parseBccbAccountStatementTransactions(lines);
+    transactions = bccb.transactions;
+    parserPrintedTotals = bccb.printedTotals;
+    for (const issue of bccb.reconciliationIssues) logs.push({ level: "error", stage: "parse", message: issue });
+  } else if (extraction.source === "pdf" && isHdfcStatementLayout(lines)) {
+    // HDFC statement with a native text layer (OCR and word-box HDFC layouts have their own parsers).
+    detectedFormat = "hdfc-statement";
+    const hdfc = parseHdfcStatementTransactions(lines);
+    transactions = hdfc.transactions;
+    parserPrintedTotals = hdfc.printedTotals;
+    for (const issue of hdfc.reconciliationIssues) logs.push({ level: "error", stage: "parse", message: issue });
   } else if (detectedFormat === "bccb-ledger" || isBccbLedgerLayout(lines)) {
     detectedFormat = "bccb-ledger";
     const bccb = parseBccbLedgerTransactions(lines);
@@ -1370,6 +1385,8 @@ function parseStatement(extraction) {
     detectedFormat !== "icici-detailed" &&
     detectedFormat !== "bccb-ledger" &&
     detectedFormat !== "bccb-passbook" &&
+    detectedFormat !== "bccb-account-statement" &&
+    detectedFormat !== "hdfc-statement" &&
     detectedFormat !== "apna-sahakari" &&
     // Reversals are negative deposits there; the per-month balance check already validated rows.
     detectedFormat !== "hdfc-wordbox" &&

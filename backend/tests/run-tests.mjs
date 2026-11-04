@@ -37,3 +37,4 @@ await import("./layout-guards.test.mjs");
 await import("./bank-validation-guards.test.mjs");
 await import("./layout-guards-generic.test.mjs");
 await import("./bank-expected-values.test.mjs");
+await import("./bank-statement-layouts.test.mjs");

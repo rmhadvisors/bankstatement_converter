@@ -1,6 +1,11 @@
 import { amountItems, clean, parseDate, roundMoney, sortChronologically } from "./common.js";
 import { correctDebitCreditByBalance } from "../validation.js";
 
+// Statement of Account with the columns SNO / TRAN DATE / INST NO / DESCRIPTION / DEBITS / CREDITS /
+// BALANCE ("Cr." after the balance). Its IFSC is printed as "IFSC CODE : BKID...", not "IFSC: BKID".
+const SNO_HEADER = /^SNO\s+TRAN DATE\s+INST NO\s+DESCRIPTION\s+DEBITS\s+CREDITS\s+BALANCE/i;
+const hasSnoHeader = (lines) => lines.slice(0, 120).some((line) => SNO_HEADER.test(clean(line.text || line)));
+
 function isBankOfIndiaLayout(lines) {
   const text = lines
     .slice(0, 120)
@@ -8,6 +13,7 @@ function isBankOfIndiaLayout(lines) {
     .join("\n");
 
   return (
+    (/BANK\s+OF\s+INDIA/i.test(text) && hasSnoHeader(lines)) ||
     (/(BANK\s+OF\s+INDIA|IFSC:\s*BKID)/i.test(text) &&
       (/\|\s*DATE\s*\|\s*PARTICULARS\s*\|CHQ-NO\|\s*Debit\s*\|\s*Credit/i.test(text) ||
         /Sr No\s+Date\s+Remarks\s+Debit\s+Credit\s+Balance/i.test(text))) ||
@@ -113,16 +119,53 @@ function parseSrNoRow(entry) {
   };
 }
 
+// A row is: SNO, date, then an optional instrument no. (a number at x < 230), the description, and
+// always three amounts in the order debit, credit, balance, then "Cr." or "Dr." after the balance.
+// Empty debit/credit print as 0.00. Amounts are taken by order, not by x, because they are right-aligned.
+function parseSnoRow(entry) {
+  const items = [...(entry.items || [])].sort((left, right) => left.x - right.x);
+  const dateItem = items.find((item) => /^\d{2}-\d{2}-\d{4}$/.test(clean(item.text)));
+  const date = parseDate(dateItem?.text);
+  if (!date) return null;
+
+  const amounts = amountItems(items).filter((item) => item.x > dateItem.x);
+  if (amounts.length < 3) return null;
+  const [debit, credit, balance] = amounts.slice(-3);
+  const side = items.find((item) => item.x > balance.x && /^(Cr|Dr)\.?$/i.test(clean(item.text)));
+  const rest = items.filter((item) => item.x > dateItem.x && item.x < debit.x - 0.5 && !amounts.includes(item));
+  const chequeItem = rest.find((item) => item.x < 230 && /^\d+$/.test(clean(item.text)));
+
+  return {
+    date,
+    particulars: clean(rest.filter((item) => item !== chequeItem).map((item) => item.text).join(" ")) || "TRANSACTION",
+    chequeNo: chequeItem ? clean(chequeItem.text) : null,
+    withdrawal: debit.value ? Math.abs(debit.value) : null,
+    deposit: credit.value ? Math.abs(credit.value) : null,
+    balance: roundMoney(/^Dr/i.test(clean(side?.text)) ? -Math.abs(balance.value) : balance.value),
+  };
+}
+
+// Page headers/footers of that layout: they end the row being built (a description never wraps across them).
+const isSnoPageText = (text) => SNO_HEADER.test(text) || /^Statement of Account\b/i.test(text) || /^Page:/i.test(text) || /^This is a system generated statement/i.test(text);
+
 function parseBankOfIndiaTransactions(lines) {
   const transactions = [];
   let current = null;
+  const sno = hasSnoHeader(lines);
 
   for (const entry of lines) {
     const text = clean(entry.text || entry);
     if (!text) continue;
 
+    if (sno && isSnoPageText(text)) {
+      current = null;
+      continue;
+    }
+
     let row = null;
-    if (isPipeRowStart(text)) {
+    if (sno && isSrNoRowStart(entry)) {
+      row = parseSnoRow(entry);
+    } else if (isPipeRowStart(text)) {
       row = parsePipeRow(entry);
     } else if (isSrNoRowStart(entry)) {
       row = parseSrNoRow(entry);
