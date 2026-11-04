@@ -26,6 +26,7 @@ import { isStandardCharteredLayout, parseStandardCharteredTransactions } from ".
 import { isVvsbLayout, parseVvsbTransactions } from "./vvsbParser.js";
 import { isHdfcOcrLayout, parseHdfcOcrStatement } from "./hdfcOcrParser.js";
 import { isHdfcWordBoxLayout, parseHdfcWordBoxStatement } from "./hdfcWordBoxParser.js";
+import { isHdfcStatementLayout, parseHdfcStatementTransactions } from "./parsers/hdfcStatementParser.js";
 import { isPassbookLayout, parsePassbookStatement } from "./passbookParser.js";
 import { buildValidationReport, correctDebitCreditByBalance, removeDuplicateTransactions } from "./validation.js";
 import { detectBank } from "./parsers/detector.js";
@@ -40,6 +41,7 @@ import { parseFederalOcrTransactions } from "./parsers/federalOcrParser.js";
 import { isIdbiLayout, parseIdbiTransactions } from "./parsers/idbiParser.js";
 import { isIdbiLedgerLayout, parseIdbiLedgerTransactions } from "./parsers/idbiLedgerParser.js";
 import { isBccbLedgerLayout, parseBccbLedgerTransactions } from "./parsers/bccbLedgerParser.js";
+import { isBccbAccountStatementLayout, parseBccbAccountStatementTransactions } from "./parsers/bccbAccountStatementParser.js";
 import { isApnaSahakariLayout, parseApnaSahakariTransactions } from "./parsers/apnaSahakariParser.js";
 import { isFinacleTransactionInquiryLayout, parseFinacleTransactions } from "./parsers/finacleOcrParser.js";
 import { isJanaLayout, parseJanaTransactions } from "./parsers/janaParser.js";
@@ -62,6 +64,7 @@ import {
   parseGreaterBombayTransactions,
 } from "./parsers/greaterBombayParser.js";
 import { clean, roundMoney, isChronological } from "./parsers/common.js";
+import { columnBands, columnOfItem, headerCells, isColumnHeader, stripPageFurniture } from "./guards.js";
 
 function cleanKey(value) {
   return clean(value).replace(/\s+/g, " ");
@@ -202,7 +205,12 @@ function maskDates(text) {
   return masked;
 }
 
-function amountMatches(line, items = null) {
+// bands (guards.columnBands of the table header): a number whose position puts it in one of these columns is not an
+// amount, whatever it looks like (a 12-digit reference number, a value date's digits). Numbers in a Debit / Credit /
+// Balance column, in an unnamed column, or with no position (text-only lines) are kept exactly as before.
+const NOT_AMOUNT_COLUMNS = new Set(["reference", "valueDate", "description", "date"]);
+
+function amountMatches(line, items = null, bands = null) {
   const maskedLine = maskDates(line);
   const pattern = /-?(?:(?:\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d{1,2})?|\.\d{1,2})(?:\s*(?:Cr|Dr))?/gi;
   const itemPattern = /^-?(?:(?:\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d{1,2})?|\.\d{1,2})(?:\s*(?:Cr|Dr))?$/i;
@@ -211,6 +219,7 @@ function amountMatches(line, items = null) {
         .map((item) => ({
           raw: clean(item.text),
           x: item.x,
+          width: item.width,
           used: false,
         }))
         .filter((item) => itemPattern.test(item.raw))
@@ -240,8 +249,10 @@ function amountMatches(line, items = null) {
         index: match.index,
         column: item ? item.x : match.index,
         value: parseAmount(match[0]),
+        notAmount: Boolean(bands && item && NOT_AMOUNT_COLUMNS.has(columnOfItem({ x: item.x, width: item.width, text: raw }, bands))),
       };
-    });
+    })
+    .filter((match) => !match.notAmount);
 }
 
 function isTransactionHeader(line) {
@@ -472,7 +483,7 @@ function parseTransactionLine(
   if (!rowDate) return null;
 
   const date = rowDate.date;
-  const amounts = amountMatches(line, items);
+  const amounts = amountMatches(line, items, amountColumns?.bands ?? null);
   if (!date || amounts.length === 0) return null;
 
   const balanceMatch = amounts[amounts.length - 1];
@@ -663,6 +674,7 @@ function detectAmountColumnPositions(entry) {
         balance: balanceItem ? balanceItem.x : null,
         coordinateBased: true,
         signedColumn: true,
+        bands: columnBands(items),
       };
     }
 
@@ -672,6 +684,7 @@ function detectAmountColumnPositions(entry) {
         credit: creditItem ? creditItem.x : null,
         balance: balanceItem ? balanceItem.x : null,
         coordinateBased: true,
+        bands: columnBands(items),
       };
     }
   }
@@ -784,10 +797,28 @@ function computeNarrationRoles(lines) {
   return roles;
 }
 
-function parseTransactions(lines) {
+// Rule 3: header blocks, page numbers and notices repeated on every page are not part of any description. The
+// column-header lines themselves stay (this parser reads them), and page 1's header block stays (account details).
+// Only for an unrecognised layout (no header from the list in isTransactionHeader): the listed layouts' outputs are
+// verified as they are, and some of them (TJSB) print narration above AND below the dated line, which this would shift.
+function withoutPageFurniture(lines) {
+  if (lines.some((entry) => isTransactionHeader(clean(entry.text || entry)))) return lines;
+  const headerEntry = lines.find((entry) => entry.items?.length && (isTransactionHeader(clean(entry.text)) || isColumnHeader(entry)));
+  if (!headerEntry || !lines.every((entry) => Number.isFinite(entry.pageNumber))) return lines;
+  const pages = [];
+  for (const entry of lines) (pages[entry.pageNumber - 1] ??= []).push(entry);
+  const { furniture } = stripPageFurniture(pages.filter(Boolean), { bands: columnBands(headerEntry.items), keepFirstPageHeader: true });
+  const drop = new Set(furniture.filter((entry) => !isTransactionHeader(clean(entry.text))));
+  return drop.size ? lines.filter((entry) => !drop.has(entry)) : lines;
+}
+
+// meta (out): { known, headers } -- known = a header from the list in isTransactionHeader() was met; headers = the
+// header cells of the first table header (listed or found by column names), for a layout nobody recognised.
+function parseTransactions(lines, meta = {}) {
   const transactions = [];
   let current = null;
   let previousBalance = extractOpeningBalance(lines);
+  lines = withoutPageFurniture(lines);
   let pendingNarration = [];
   const prefixNarrationMode = detectPrefixNarrationMode(lines);
   let started = !prefixNarrationMode;
@@ -799,10 +830,14 @@ function parseTransactions(lines) {
     const line = clean(entry.text || entry);
     if (!line) continue;
 
-    if (isTransactionHeader(line)) {
+    // A header from the known list, or (an unrecognised layout) a line whose cells name three or more table columns.
+    const listedHeader = isTransactionHeader(line);
+    if (listedHeader || (entry.items?.length && isColumnHeader(entry))) {
       started = true;
       pendingNarration = [];
       amountColumns = detectAmountColumnPositions(entry);
+      if (listedHeader) meta.known = true;
+      meta.headers ??= headerCells(entry);
       continue;
     }
 
@@ -1078,6 +1113,8 @@ function parseStatement(extraction) {
   let detectedFormat = detectBank(extraction.text || lines);
   let transactions;
   let parserPrintedTotals = null;
+  const genericMeta = {};
+  let layout = null; // { known: false, headers } only for a layout no parser recognised
   let parsingErrors = [];
   let reviewRows = [];
   let finacleAccountInfo = null;
@@ -1149,6 +1186,19 @@ function parseStatement(extraction) {
         })),
       );
     }
+  } else if (isBccbAccountStatementLayout(lines)) {
+    detectedFormat = "bccb-account-statement";
+    const bccb = parseBccbAccountStatementTransactions(lines);
+    transactions = bccb.transactions;
+    parserPrintedTotals = bccb.printedTotals;
+    for (const issue of bccb.reconciliationIssues) logs.push({ level: "error", stage: "parse", message: issue });
+  } else if (extraction.source === "pdf" && isHdfcStatementLayout(lines)) {
+    // HDFC statement with a native text layer (OCR and word-box HDFC layouts have their own parsers).
+    detectedFormat = "hdfc-statement";
+    const hdfc = parseHdfcStatementTransactions(lines);
+    transactions = hdfc.transactions;
+    parserPrintedTotals = hdfc.printedTotals;
+    for (const issue of hdfc.reconciliationIssues) logs.push({ level: "error", stage: "parse", message: issue });
   } else if (detectedFormat === "bccb-ledger" || isBccbLedgerLayout(lines)) {
     detectedFormat = "bccb-ledger";
     const bccb = parseBccbLedgerTransactions(lines);
@@ -1326,13 +1376,17 @@ function parseStatement(extraction) {
     transactions = columnar.transactions;
     parserPrintedTotals = columnar.printedTotals;
   } else {
-    transactions = parseTransactions(lines);
+    transactions = parseTransactions(lines, genericMeta);
+    // An unrecognised layout (no listed header): the rows are only as good as the checks in validation.js.
+    if (!genericMeta.known) layout = { known: false, headers: genericMeta.headers ?? [] };
   }
 
   if (
     detectedFormat !== "icici-detailed" &&
     detectedFormat !== "bccb-ledger" &&
     detectedFormat !== "bccb-passbook" &&
+    detectedFormat !== "bccb-account-statement" &&
+    detectedFormat !== "hdfc-statement" &&
     detectedFormat !== "apna-sahakari" &&
     // Reversals are negative deposits there; the per-month balance check already validated rows.
     detectedFormat !== "hdfc-wordbox" &&
@@ -1365,6 +1419,8 @@ function parseStatement(extraction) {
 
   let printedTotals = parserPrintedTotals || extractPrintedTotals(lines);
 
+  // a dedicated fallback parser below is a known layout, not an unrecognised one
+  if (transactions.length === 0) layout = null;
   if (transactions.length === 0 && isSocietySavingsCompact(lines)) {
     const savings = parseSocietySavingsCompact(lines);
     transactions = savings.transactions;
@@ -1402,6 +1458,7 @@ function parseStatement(extraction) {
     transactions,
     totals,
     printedTotals: printedTotals || null,
+    ...(layout ? { layout } : {}),
     pageCount: extraction.pageCount,
     detectedFormat,
     ocrSourced: extraction.source === "ocr",
