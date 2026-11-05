@@ -39,3 +39,6 @@ backend/tests/fixtures/bank/
 
 # Invoice fixtures contain real client names/GSTINs; tests skip when absent.
 backend/tests/fixtures/invoices/
+
+# Client data seed SQL (party names); never commit.
+supabase/local/

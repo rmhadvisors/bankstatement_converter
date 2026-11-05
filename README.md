@@ -22,7 +22,7 @@ npm install          # installs both workspaces
 Copy env examples and fill in real values:
 
 ```
-cp frontend/.env.example frontend/.env   # VITE_SUPABASE_*
+cp frontend/.env.example frontend/.env   # VITE_API_BASE_URL
 cp backend/.env.example backend/.env     # OCR_SPACE_API_KEY
 ```
 
@@ -32,7 +32,7 @@ Run both in separate terminals (or use `run-dev.cmd` on Windows, which does this
 
 ```
 npm run dev:backend    # http://localhost:8080  (POST /api/convert)
-npm run dev:frontend   # http://localhost:8090  (proxies /api to :8080)
+npm run dev:frontend   # http://localhost:5200  (proxies /api to :8080)
 ```
 
 ## Production
@@ -54,7 +54,6 @@ processes on two different platforms:
   command `npm run build`, output directory `dist`. Required env vars:
   - `VITE_API_BASE_URL` — the backend's deployed URL (e.g. `https://api.example.com`).
     Leave empty only if frontend and backend somehow share one origin.
-  - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`
   - `VITE_APP_BASE_PATH` (optional, defaults to `/`)
 
 - **Backend → Hostinger.** Set the app's root directory to `backend`, start command
@@ -103,6 +102,6 @@ test files for expected filenames) — these are optional local fixtures, not co
   are not applied to the document (only the static `<title>` in `frontend/index.html`
   is used). If SEO/SSR matters for public marketing pages, that's a tradeoff worth
   revisiting.
-- Client-side auth (Supabase JS + localStorage session) is unchanged. `/api/convert`
+- Client-side auth is a localStorage session only (no Supabase). `/api/convert`
   still has no server-side auth check — same as before this restructure.
 # bankstatement_converter

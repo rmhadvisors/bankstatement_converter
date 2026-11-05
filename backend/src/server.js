@@ -11,6 +11,21 @@ import process from "node:process";
 // and restarts the server -- dropping every in-memory job (the client then polls into a 404).
 import { convertPdfToExcelBuffer } from "./parsers/converter.js";
 import { convertCreditCardToExcelBuffer } from "./creditcard/ccConverter.js";
+import {
+  handleInvoiceConfig,
+  handleInvoiceConvertSubmit,
+  handleInvoiceExport,
+  handleInvoiceStatus,
+  handleInvoiceValidate,
+} from "./invoice/service.js";
+import {
+  handleFuelBuild,
+  handleFuelConfig,
+  handleFuelConvertSubmit,
+  handleFuelExport,
+  handleFuelPage,
+  handleFuelStatus,
+} from "./invoice/fuelService.js";
 
 try {
   process.loadEnvFile();
@@ -19,6 +34,9 @@ try {
 }
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+// `npm run dev`: the backend is API only and the frontend runs on its own port. `npm start` (production)
+// still serves the built frontend from this server.
+const API_ONLY = process.env.npm_lifecycle_event === "dev";
 const FRONTEND_DIST = join(__dirname, "..", "..", "frontend", "dist");
 // PORT=0 (tests) means "any free port" -- `Number(PORT) || 8080` turned it into 8080 and collided
 // with the dev server. Unset or empty PORT still means 8080.
@@ -31,7 +49,7 @@ const STALE_UPLOAD_MS = 60 * 60 * 1000;
 // enforces CORS on every /api request. ALLOWED_ORIGIN takes a comma-separated list to cover a
 // production domain plus Vercel preview-deployment URLs; unset falls back to the local Vite dev
 // server so `npm run dev` keeps working without any env setup.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || "http://localhost:8090")
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || "http://localhost:5200")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -476,9 +494,53 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // Invoice / receipt converter (backend/src/invoice/service.js).
+    if (url.pathname.startsWith("/api/invoice/")) {
+      const invoiceJob = url.pathname.match(/^\/api\/invoice\/convert\/([^/]+)$/);
+      if (invoiceJob && req.method === "GET") return sendWebResponse(res, handleInvoiceStatus(invoiceJob[1]));
+      if (url.pathname === "/api/invoice/config" && req.method === "GET") return sendWebResponse(res, await handleInvoiceConfig());
+      const handler = {
+        "/api/invoice/convert": handleInvoiceConvertSubmit,
+        "/api/invoice/validate": handleInvoiceValidate,
+        "/api/invoice/export": handleInvoiceExport,
+      }[url.pathname];
+      if (handler && req.method === "POST") {
+        const webRequest = await nodeRequestToWebRequest(req);
+        return sendWebResponse(
+          res,
+          webRequest ? await handler(webRequest) : Response.json({ code: "FILE_TOO_LARGE", message: "Files must be 100 MB or smaller." }, { status: 413 }),
+        );
+      }
+    }
+
+    // Fuel sales register (backend/src/invoice/fuelService.js).
+    if (url.pathname.startsWith("/api/fuel-register/")) {
+      const job = url.pathname.match(/^\/api\/fuel-register\/convert\/([^/]+)(?:\/page\/(\d+))?$/);
+      if (job && req.method === "GET") return sendWebResponse(res, job[2] ? handleFuelPage(job[1], job[2]) : handleFuelStatus(job[1]));
+      if (url.pathname === "/api/fuel-register/config" && req.method === "GET") return sendWebResponse(res, handleFuelConfig());
+      const handler = {
+        "/api/fuel-register/convert": handleFuelConvertSubmit,
+        "/api/fuel-register/build": handleFuelBuild,
+        "/api/fuel-register/export": handleFuelExport,
+      }[url.pathname];
+      if (handler && req.method === "POST") {
+        const webRequest = await nodeRequestToWebRequest(req);
+        return sendWebResponse(
+          res,
+          webRequest ? await handler(webRequest) : Response.json({ code: "FILE_TOO_LARGE", message: "Files must be 100 MB or smaller." }, { status: 413 }),
+        );
+      }
+    }
+
     if (url.pathname.startsWith("/api/")) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({ code: "NOT_FOUND", message: "Unknown API route." }));
+      return;
+    }
+
+    if (API_ONLY) {
+      res.writeHead(404, { "content-type": "application/json" });
+      res.end(JSON.stringify({ code: "NOT_FOUND", message: "This is the API (port 8080). The web app is on the frontend dev port." }));
       return;
     }
 

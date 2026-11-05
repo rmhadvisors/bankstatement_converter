@@ -33,6 +33,14 @@ await import("./creditcard/server.test.mjs");
 await import("./creditcard/axis-apostrophe.test.mjs");
 await import("./creditcard/client-cards.test.mjs");
 await import("./creditcard/ccFallback.test.mjs");
+await import("./invoice/validate.test.mjs");
+await import("./invoice/tally.test.mjs");
+await import("./invoice/images.test.mjs");
+await import("./invoice/extract.test.mjs");
+await import("./invoice/sarvam.test.mjs");
+await import("./invoice/rules.test.mjs");
+await import("./invoice/fuelRegister.test.mjs");
+await import("./invoice/live.test.mjs");
 
 await import("./hdfc-merged-apr25-mar26.test.mjs");
 await import("./bank-client-statements.test.mjs");

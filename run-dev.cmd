@@ -17,5 +17,5 @@ if not exist "node_modules\" (
 echo Starting backend API at http://localhost:8080/
 start "backend" cmd /c "npm.cmd run dev:backend"
 
-echo Starting frontend dev server at http://localhost:8090/
+echo Starting frontend dev server at http://localhost:5200/
 call npm.cmd run dev:frontend
