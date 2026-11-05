@@ -32,7 +32,7 @@ Run both in separate terminals (or use `run-dev.cmd` on Windows, which does this
 
 ```
 npm run dev:backend    # http://localhost:8080  (POST /api/convert)
-npm run dev:frontend   # http://localhost:8090  (proxies /api to :8080)
+npm run dev:frontend   # http://localhost:5200  (proxies /api to :8080)
 ```
 
 ## Production

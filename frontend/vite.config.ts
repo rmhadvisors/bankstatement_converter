@@ -11,7 +11,7 @@ export default defineConfig({
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss(), tsConfigPaths()],
   server: {
     host: "0.0.0.0",
-    port: 8090,
+    port: 5200,
     allowedHosts: ["bankstatement-converter.onrender.com", "staff.rmhadvisors.in"],
     proxy: {
       "/api": "http://localhost:8080",

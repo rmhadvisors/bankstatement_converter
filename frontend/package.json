@@ -4,10 +4,10 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --host 0.0.0.0 --port 8090",
+    "dev": "vite dev --host 0.0.0.0 --port 5200",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview --host 0.0.0.0 --port 8090",
+    "preview": "vite preview --host 0.0.0.0 --port 5200",
     "lint": "eslint ."
   },
   "dependencies": {

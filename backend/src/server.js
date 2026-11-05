@@ -46,7 +46,7 @@ const STALE_UPLOAD_MS = 60 * 60 * 1000;
 // enforces CORS on every /api request. ALLOWED_ORIGIN takes a comma-separated list to cover a
 // production domain plus Vercel preview-deployment URLs; unset falls back to the local Vite dev
 // server so `npm run dev` keeps working without any env setup.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || "http://localhost:8090")
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || "http://localhost:5200")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
