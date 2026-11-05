@@ -202,7 +202,7 @@ function reconcile(summary, transactions, runningBalance = null) {
   } else {
     for (const check of failed) {
       warnings.push(
-        `${check.name} does not reconcile: off by ₹${formatMoney(Math.abs(check.difference))}.`,
+        `${check.name} does not reconcile: off by ₹${formatMoney(Math.abs(check.difference))} (calculated ₹${formatMoney(check.expected)}, printed ₹${formatMoney(check.actual)}).`,
       );
     }
   }
