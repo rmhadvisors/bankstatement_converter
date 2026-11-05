@@ -34,6 +34,9 @@ try {
 }
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+// `npm run dev`: the backend is API only and the frontend runs on its own port. `npm start` (production)
+// still serves the built frontend from this server.
+const API_ONLY = process.env.npm_lifecycle_event === "dev";
 const FRONTEND_DIST = join(__dirname, "..", "..", "frontend", "dist");
 // PORT=0 (tests) means "any free port" -- `Number(PORT) || 8080` turned it into 8080 and collided
 // with the dev server. Unset or empty PORT still means 8080.
@@ -531,6 +534,12 @@ const server = createServer(async (req, res) => {
     if (url.pathname.startsWith("/api/")) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({ code: "NOT_FOUND", message: "Unknown API route." }));
+      return;
+    }
+
+    if (API_ONLY) {
+      res.writeHead(404, { "content-type": "application/json" });
+      res.end(JSON.stringify({ code: "NOT_FOUND", message: "This is the API (port 8080). The web app is on the frontend dev port." }));
       return;
     }
 
