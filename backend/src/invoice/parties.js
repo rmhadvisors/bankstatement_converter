@@ -1,6 +1,6 @@
 // How each supplier is entered in Tally. Matched by GSTIN first, then by a fuzzy name match
 // ("ABC POWER PAINT" in the list = "Abc Powder paint" on the invoice). The party list is per-user
-// data (Supabase invoice_parties); no client names live in the code.
+// data; no client names live in the code.
 import { cleanGstin } from "./gstin.js";
 
 const ENTRY_TYPES = ["STOCK", "NORMAL", "TCS", "IMPORT"];

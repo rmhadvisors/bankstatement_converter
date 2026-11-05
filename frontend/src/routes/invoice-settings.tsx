@@ -73,7 +73,7 @@ function InvoiceSettingsPage() {
             How each supplier is entered in Tally. Invoices are matched by GSTIN first, then by a close name match.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {store === "supabase" ? "Saved to your account." : "Saved in this browser only (the party settings table hasn't been set up yet)."}
+            Saved in this browser only.
           </p>
 
           <div className="mt-4">

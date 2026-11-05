@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+
+// Local session only, kept in this browser; there is no account backend.
+type User = { id: string; email?: string; user_metadata?: Record<string, unknown> };
+type Session = { user: User };
 
 type AuthCtx = {
   user: User | null;
@@ -20,56 +22,38 @@ const Ctx = createContext<AuthCtx>({
   signOut: async () => {},
 });
 
+const SESSION_KEY = "statement-savior-session";
+
+function withName(user: User): User {
+  const meta = user.user_metadata ?? {};
+  if (!meta.full_name || meta.full_name === "Local user") meta.full_name = "rmhadvisors";
+  user.user_metadata = meta;
+  return user;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let active = true;
-    const saved = window.localStorage.getItem("statement-savior-session");
+    const saved = window.localStorage.getItem(SESSION_KEY);
     if (saved) {
       try {
-        const user = JSON.parse(saved) as User;
-        if (!user.user_metadata) (user as any).user_metadata = {};
-        if (!(user as any).user_metadata.full_name || (user as any).user_metadata.full_name === "Local user") {
-          (user as any).user_metadata.full_name = "rmhadvisors";
-        }
-        setSession({ user } as Session);
+        setSession({ user: withName(JSON.parse(saved) as User) });
       } catch {
         setSession(null);
       }
-      setLoading(false);
-      return () => {
-        active = false;
-      };
     }
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session);
-      setLoading(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      if (!active) return;
-      setSession(s);
-      setLoading(false);
-    });
-    return () => {
-      active = false;
-      sub.subscription.unsubscribe();
-    };
+    setLoading(false);
   }, []);
 
   const setLocalSession = async (user: User | null) => {
     if (user) {
-      if (!(user as any).user_metadata) (user as any).user_metadata = {};
-      if (!(user as any).user_metadata.full_name || (user as any).user_metadata.full_name === "Local user") {
-        (user as any).user_metadata.full_name = "rmhadvisors";
-      }
-      window.localStorage.setItem("statement-savior-session", JSON.stringify(user));
-      setSession({ user } as Session);
+      withName(user);
+      window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+      setSession({ user });
     } else {
-      window.localStorage.removeItem("statement-savior-session");
+      window.localStorage.removeItem(SESSION_KEY);
       setSession(null);
     }
   };
@@ -80,17 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         session,
         loading,
-        signIn: async (user: User) => {
-          await setLocalSession(user);
-        },
-        signUp: async (user: User) => {
-          await setLocalSession(user);
-        },
-        signOut: async () => {
-          window.localStorage.removeItem("statement-savior-session");
-          await supabase.auth.signOut();
-          setSession(null);
-        },
+        signIn: setLocalSession,
+        signUp: setLocalSession,
+        signOut: () => setLocalSession(null),
       }}
     >
       {children}

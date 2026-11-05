@@ -647,9 +647,7 @@ function FuelRegisterPage() {
               {savedParty
                 ? "Saved in your party list."
                 : "Not in your party list yet; Save adds it."}{" "}
-              {partyStore === "supabase"
-                ? "Entry type is saved to your account."
-                : "Saved in this browser only."}{" "}
+              Saved in this browser only.{" "}
               Item and ledger names are kept in this browser.
             </p>
             <label className="mt-3 inline-block text-sm">
