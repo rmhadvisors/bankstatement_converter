@@ -789,11 +789,15 @@ function computeNarrationRoles(lines) {
     const y1 = lines[i1].y;
     const y2 = lines[i2].y;
     const midpoint = (y1 + y2) / 2;
+    // Two dated lines on different pages: y restarts on the new page, so the midpoint means nothing. What follows the
+    // first dated line on its own page belongs to it; what precedes the second one on its page belongs to that one.
+    const [page1, page2] = [lines[i1].pageNumber, lines[i2].pageNumber];
+    const acrossPages = Number.isFinite(page1) && Number.isFinite(page2) && page1 !== page2;
 
     for (let k = i1 + 1; k < i2; k += 1) {
       const y = lines[k]?.y;
       if (typeof y !== "number") continue;
-      roles[k] = y <= midpoint;
+      roles[k] = acrossPages ? lines[k].pageNumber !== page1 : y <= midpoint;
     }
   }
 

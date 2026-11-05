@@ -9,6 +9,7 @@ await import("./bob-502.test.mjs");
 await import("./bccb-june-26.test.mjs");
 await import("./bccb-passbook-photos.test.mjs");
 await import("./tjsb-011763.test.mjs");
+await import("./narration-page-break.test.mjs");
 await import("./kotak-5611535323.test.mjs");
 await import("./provided-samples.test.mjs");
 await import("./icici-9043-detailed.test.mjs");
