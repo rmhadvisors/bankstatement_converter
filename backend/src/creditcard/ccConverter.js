@@ -12,6 +12,7 @@ import { isIciciCardLayout, parseIciciCard } from "./issuers/iciciCard.js";
 import { isSbiCardLayout, parseSbiCard } from "./issuers/sbiCard.js";
 import { isAxisCardLayout, parseAxisCard } from "./issuers/axisCard.js";
 import { isGenericCardLayout, parseGenericCard } from "./issuers/genericCard.js";
+import { applyFallbackNotes, parseByHeaderColumns } from "./ccFallback.js";
 
 const ISSUER_PARSERS = [
   { isLayout: isHdfcCardLayout, parse: parseHdfcCard },
@@ -95,7 +96,23 @@ function buildCardStatement(lines, text = linesToText(lines)) {
 
   const issuer = detectIssuer(text);
   const parser = ISSUER_PARSERS.find((candidate) => candidate.isLayout(lines));
-  const { summary, transactions, emiSummary } = parser.parse(lines);
+  const parsed = parser.parse(lines);
+  const { summary, emiSummary } = parsed;
+  let transactions = parsed.transactions;
+
+  // No parser found a row. If the text still has dated lines with amounts, read the table by its header columns;
+  // it is reconciled and labelled below. Dated lines that cannot be read at all get a specific error, never the bare one.
+  let fallback = null;
+  if (transactions.length === 0) {
+    fallback = parseByHeaderColumns(lines, { cardLast4: summary.cardLast4 ?? null, cardHolder: summary.cardHolder ?? null });
+    if (fallback.rows.length) transactions = fallback.rows;
+    else if (fallback.candidates > 0) {
+      throw ccError(
+        "LAYOUT_NOT_RECOGNISED",
+        `This ${issuer?.name ?? "card"} statement has ${fallback.candidates} dated line(s) with amounts, but none could be read: ${fallback.problems.join("; ")}. Headers found: ${fallback.headers.join(", ") || "none"}. Send this PDF so the layout can be added.`,
+      );
+    }
+  }
 
   if (transactions.length === 0) {
     throw issuer
@@ -113,12 +130,14 @@ function buildCardStatement(lines, text = linesToText(lines)) {
   const deduped = removeDuplicateRows(transactions);
   // Before reconcile: the running balance may correct Debit/Credit types that totals depend on.
   const runningBalance = checkRunningBalance(summary, deduped.transactions);
+  const reconciliation = reconcile(summary, deduped.transactions, runningBalance);
+  if (fallback?.rows.length) applyFallbackNotes(reconciliation, fallback);
   return {
     summary,
     transactions: deduped.transactions,
     emiSummary,
     duplicatesRemoved: deduped.removed,
-    reconciliation: reconcile(summary, deduped.transactions, runningBalance),
+    reconciliation,
   };
 }
 
