@@ -24,7 +24,7 @@ import {
 export const Route = createFileRoute("/fuel-register")({
   head: () => ({
     meta: [
-      { title: "Fuel register - RMH Advisors PDF Converter" },
+      { title: "Doc OCR - RMH Advisors PDF Converter" },
       {
         name: "description",
         content: "Convert a scanned monthly fuel sales register to the Tally import sheet.",
@@ -107,7 +107,7 @@ function FuelRegisterPage() {
         setDefaults(config);
         setMapping(readMapping(user.id, config.mapping));
       },
-      () => toast.error("Could not load the fuel register settings."),
+      () => toast.error("Could not load the Doc OCR settings."),
     );
   }, [user]);
 
@@ -334,7 +334,7 @@ function FuelRegisterPage() {
 
         <div className="rounded-2xl border bg-card p-6 shadow-sm">
           <h1 className="text-xl font-semibold tracking-tight">
-            Fuel sales register to Tally Excel
+            Doc OCR: fuel sales register to Tally Excel
           </h1>
           <p className="text-sm text-muted-foreground">
             {party}: one scanned monthly register PDF (a page per product, then the rates). Every
