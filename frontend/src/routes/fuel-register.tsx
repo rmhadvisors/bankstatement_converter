@@ -5,8 +5,6 @@ import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, UploadCloud } fr
 import { useAuth } from "@/lib/auth";
 import { ConverterTabs } from "@/components/converter-tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ENTRY_TYPES, type EntryType, type Party } from "@/lib/invoice-api";
-import { loadParties, saveParty, type PartyStore } from "@/lib/invoice-parties";
 import {
   buildFuelRegister,
   COLS,
@@ -15,7 +13,6 @@ import {
   getFuelConfig,
   pageImageUrl,
   readMapping,
-  writeMapping,
   type BuildParams,
   type Built,
   type Col,
@@ -85,7 +82,7 @@ function FuelRegisterPage() {
   const [reading, setReading] = useState<Reading | null>(null);
   const [built, setBuilt] = useState<Built | null>(null);
   const [financialYear, setFinancialYear] = useState(currentFinancialYear());
-  const [narrationDate, setNarrationDate] = useState(today());
+  const narrationDate = today(); // the export's narration date is the day it is made
   const [month, setMonth] = useState<number | "">("");
   const [rateInputs, setRateInputs] = useState<Record<string, string>>({});
   const [accepted, setAccepted] = useState<Record<string, string>>({});
@@ -98,8 +95,6 @@ function FuelRegisterPage() {
     mapping: MappingRow[];
   } | null>(null);
   const [mapping, setMapping] = useState<MappingRow[]>([]);
-  const [parties, setParties] = useState<Party[]>([]);
-  const [partyStore, setPartyStore] = useState<PartyStore>("browser");
 
   useEffect(() => {
     if (!loading && !user) nav({ to: "/" });
@@ -113,9 +108,6 @@ function FuelRegisterPage() {
         setMapping(readMapping(user.id, config.mapping));
       },
       () => toast.error("Could not load the fuel register settings."),
-    );
-    loadParties(user.id).then(
-      ({ parties: list, store }) => (setParties(list), setPartyStore(store)),
     );
   }, [user]);
 
@@ -206,23 +198,6 @@ function FuelRegisterPage() {
   }
 
   const party = defaults?.party ?? "JIGEESHA AUTO SERVICES";
-  const savedParty = parties.find((p) => p.name === party);
-  async function saveSettings(entryType: EntryType) {
-    if (!user) return;
-    try {
-      setParties(
-        await saveParty(user.id, partyStore, parties, {
-          name: party,
-          gstin: savedParty?.gstin ?? null,
-          entryType,
-        }),
-      );
-      writeMapping(user.id, mapping);
-      toast.success("Settings saved");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save");
-    }
-  }
 
   const flagsById = new Map((built?.flags ?? []).map((f) => [f.id, f]));
   const pageOf = (product: string) => built?.tables.find((t) => t.item === product)?.page;
@@ -393,15 +368,6 @@ function FuelRegisterPage() {
                   return <option key={fy}>{fy}</option>;
                 })}
               </select>
-            </label>
-            <label className="text-sm">
-              <span className="mr-2 font-medium">Narration date</span>
-              <input
-                type="date"
-                value={narrationDate}
-                onChange={(e) => setNarrationDate(e.target.value)}
-                className="rounded-md border bg-white px-2 py-1"
-              />
             </label>
             <button
               type="button"
@@ -638,73 +604,6 @@ function FuelRegisterPage() {
               </div>
             </div>
           </>
-        )}
-
-        {defaults && (
-          <div className="rounded-2xl border bg-card p-6 shadow-sm">
-            <h2 className="font-semibold">Party settings: {party}</h2>
-            <p className="text-xs text-muted-foreground">
-              {savedParty
-                ? "Saved in your party list."
-                : "Not in your party list yet; Save adds it."}{" "}
-              Saved in this browser only.{" "}
-              Item and ledger names are kept in this browser.
-            </p>
-            <label className="mt-3 inline-block text-sm">
-              <span className="mr-2 font-medium">Entry type</span>
-              <select
-                value={savedParty?.entryType ?? defaults.entryType}
-                onChange={(e) => saveSettings(e.target.value as EntryType)}
-                className="rounded border bg-white px-2 py-1"
-              >
-                {ENTRY_TYPES.map((type) => (
-                  <option key={type}>{type}</option>
-                ))}
-              </select>
-            </label>
-            <table className="mt-3 w-full max-w-3xl text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="p-1.5">Register page</th>
-                  <th className="p-1.5">Item</th>
-                  <th className="p-1.5">Ledger</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mapping.map((row, i) => (
-                  <tr key={`${row.register}${row.nth}`} className="border-t">
-                    <td className="p-1.5 text-muted-foreground">
-                      {row.register}
-                      {row.nth > 1 ? ` #${row.nth}` : ""}
-                    </td>
-                    {(["item", "ledger"] as const).map((field) => (
-                      <td key={field} className="p-1">
-                        <input
-                          aria-label={`${row.register} ${field}`}
-                          value={row[field]}
-                          onChange={(e) =>
-                            setMapping((m) =>
-                              m.map((x, j) => (j === i ? { ...x, [field]: e.target.value } : x)),
-                            )
-                          }
-                          className="w-full rounded border px-2 py-1"
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <button
-              type="button"
-              onClick={() =>
-                saveSettings(savedParty?.entryType ?? (defaults.entryType as EntryType))
-              }
-              className="mt-3 rounded-md border bg-white px-3 py-1.5 text-sm hover:bg-muted"
-            >
-              Save settings
-            </button>
-          </div>
         )}
 
         {!defaults && (
