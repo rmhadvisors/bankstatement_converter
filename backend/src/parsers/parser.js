@@ -272,10 +272,13 @@ function isTransactionHeader(line) {
     /^tran date\s+value date\s+narration/i.test(text) ||
     /^si\s+date\s+particulars\s+chq\s+num\s+withdrawal\s+deposit\s+balance/i.test(text) ||
     /^description\s+cheque\s+no\.?\s+debit\s+credit\s+balance/i.test(text) ||
-    /^#\s+transaction date\s+value date\s+transaction details\s+chq\s*\/\s*ref no\.?\s+debit\s*\/\s*credit/i.test(
-      text,
-    )
+    isKotakHeader(text)
   );
+}
+
+// Kotak's header: the one listed layout whose page header block (the account holder's name) is stripped as furniture.
+function isKotakHeader(line) {
+  return /^#\s+transaction date\s+value date\s+transaction details\s+chq\s*\/\s*ref no\.?\s+debit\s*\/\s*credit/i.test(clean(line));
 }
 
 function isTerminalSummaryLine(line) {
@@ -799,10 +802,11 @@ function computeNarrationRoles(lines) {
 
 // Rule 3: header blocks, page numbers and notices repeated on every page are not part of any description. The
 // column-header lines themselves stay (this parser reads them), and page 1's header block stays (account details).
-// Only for an unrecognised layout (no header from the list in isTransactionHeader): the listed layouts' outputs are
-// verified as they are, and some of them (TJSB) print narration above AND below the dated line, which this would shift.
+// Only for an unrecognised layout (no header from the list in isTransactionHeader) and for Kotak: the other listed
+// layouts' outputs are verified as they are, and some of them (TJSB) print narration above AND below the dated line,
+// which this would shift.
 function withoutPageFurniture(lines) {
-  if (lines.some((entry) => isTransactionHeader(clean(entry.text || entry)))) return lines;
+  if (lines.some((entry) => isTransactionHeader(clean(entry.text || entry))) && !lines.some((entry) => isKotakHeader(entry.text || entry))) return lines;
   const headerEntry = lines.find((entry) => entry.items?.length && (isTransactionHeader(clean(entry.text)) || isColumnHeader(entry)));
   if (!headerEntry || !lines.every((entry) => Number.isFinite(entry.pageNumber))) return lines;
   const pages = [];
