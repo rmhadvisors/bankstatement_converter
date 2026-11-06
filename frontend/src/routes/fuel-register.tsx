@@ -72,6 +72,7 @@ function FuelRegisterPage() {
   const nav = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [job, setJob] = useState<{
@@ -195,6 +196,16 @@ function FuelRegisterPage() {
     } finally {
       setExporting(false);
     }
+  }
+
+  function pickFile(files: FileList | null) {
+    const picked = files?.[0];
+    if (!picked) return;
+    if (picked.type !== "application/pdf" && !/.pdf$/i.test(picked.name)) {
+      toast.error("Please choose a PDF file.");
+      return;
+    }
+    setFile(picked);
   }
 
   const party = defaults?.party ?? "JIGEESHA AUTO SERVICES";
@@ -340,21 +351,30 @@ function FuelRegisterPage() {
             {party}: one scanned monthly register PDF (a page per product, then the rates). Every
             page is read twice; anything that differs or does not add up is flagged for you.
           </p>
-          <div className="mt-4 flex flex-wrap items-end gap-4">
+          <div
+            onDragOver={(e) => (e.preventDefault(), setDrag(true))}
+            onDragLeave={() => setDrag(false)}
+            onDrop={(e) => (e.preventDefault(), setDrag(false), pickFile(e.dataTransfer.files))}
+            className={`mt-4 rounded-xl border-2 border-dashed p-6 text-center ${drag ? "border-primary bg-primary/5" : "border-muted-foreground/25"}`}
+          >
+            <UploadCloud className="mx-auto h-8 w-8 text-muted-foreground" />
+            <p className="mt-2 text-sm">{file ? file.name : "Drop the register PDF here or"}</p>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            >
+              {file ? "Choose another file" : "Choose file"}
+            </button>
             <input
               ref={fileRef}
               type="file"
               accept=".pdf,application/pdf"
               className="hidden"
-              onChange={(e) => (setFile(e.target.files?.[0] ?? null), (e.target.value = ""))}
+              onChange={(e) => (pickFile(e.target.files), (e.target.value = ""))}
             />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-sm hover:bg-muted"
-            >
-              <UploadCloud className="h-4 w-4" /> {file ? file.name : "Choose the register PDF"}
-            </button>
+          </div>
+          <div className="mt-4 flex flex-wrap items-end gap-4">
             <label className="text-sm">
               <span className="mr-2 font-medium">Financial year</span>
               <select
