@@ -102,6 +102,6 @@ test files for expected filenames) — these are optional local fixtures, not co
   are not applied to the document (only the static `<title>` in `frontend/index.html`
   is used). If SEO/SSR matters for public marketing pages, that's a tradeoff worth
   revisiting.
-- Client-side auth is a localStorage session only (no Supabase). `/api/convert`
+- Client-side auth is a localStorage session only. `/api/convert`
   still has no server-side auth check — same as before this restructure.
 # bankstatement_converter
