@@ -1,6 +1,8 @@
 import { clean, parseAmount, parseDate, roundMoney } from "./common.js";
 
 const amountPattern = "(?:\\d{1,3}(?:,\\d{2,3})+|\\d+)\\.\\d{2}";
+// The GRAND TOTAL line of the "DD-MON-YYYY" layout prints "11381350.7" (one decimal when the last digit is 0).
+const totalPattern = "(?:\\d{1,3}(?:,\\d{2,3})+|\\d+)\\.\\d{1,2}";
 
 // A statement whose own text layer was baked in badly (e.g. produced by a lossy scan-to-PDF
 // tool, not this app's own OCR) can have its header row garbled beyond recognition even though
@@ -33,7 +35,7 @@ function isFederalLayout(lines) {
 function extractOpeningBalance(lines) {
   for (const line of lines) {
     const text = clean(line.text || line);
-    const match = text.match(/Opening Balance\s*:\s*(-?(?:\d{1,3}(?:,\d{2,3})+|\d+)\.\d{2})/i);
+    const match = text.match(/Opening Balance\s*:?\s*(-?(?:\d{1,3}(?:,\d{2,3})+|\d+)\.\d{2})/i);
     if (match) return parseAmount(match[1]);
   }
 
@@ -43,7 +45,7 @@ function extractOpeningBalance(lines) {
 function extractPrintedTotals(lines) {
   for (const line of lines) {
     const text = clean(line.text || line);
-    const match = text.match(new RegExp(`^GRAND TOTAL\\s+(${amountPattern})\\s+(${amountPattern})`, "i"));
+    const match = text.match(new RegExp(`^GRAND TOTAL\\s+(${totalPattern})\\s+(${totalPattern})`, "i"));
     if (!match) continue;
 
     return {
@@ -70,7 +72,7 @@ function isHeaderOrFooter(text) {
     /^(Effective Available Balance|Opening Balance|Statement of Account)\b/i.test(text) ||
     /^Tran\s+Cheque\s+Balance$/i.test(text) ||
     /^Date\s+Value Date\s+Particulars\s+Tran ID\s+Withdrawals\s+Deposits\s+Balance$/i.test(text) ||
-    /^Type\s+Details\s+Type$/i.test(text) ||
+    /^Type\s+Details\b/i.test(text) ||
     /^Page\s+\d+\s+of\s+\d+$/i.test(text) ||
     /^The Federal Bank Ltd\./i.test(text) ||
     /^Ph:/i.test(text) ||
@@ -117,6 +119,25 @@ function parseAmountLine(text) {
   };
 }
 
+function parseInlineRow(text) {
+  const match = clean(text).match(
+    new RegExp(`^(\\d{2}-[A-Za-z]{3}-\\d{4})\\s+(\\d{2}-[A-Za-z]{3}-\\d{4})\\s+(?:(.*?)\\s+)?([A-Z]{2,5})\\s+([A-Z]{1,2}\\d+)\\s+(${amountPattern})\\s+(${amountPattern})\\s+(CR|DR)$`, "i"),
+  );
+  const date = match && parseDate(match[1]);
+  if (!date) return null;
+
+  return {
+    date,
+    valueDate: parseDate(match[2]),
+    particulars: clean(match[3] || ""),
+    tranType: clean(match[4]).toUpperCase(),
+    tranId: clean(match[5]),
+    amount: Math.abs(parseAmount(match[6])),
+    balance: parseAmount(`${match[7]} ${match[8]}`),
+    balanceType: match[8].toUpperCase(),
+  };
+}
+
 function classifyByBalance(amount, balance, previousBalance) {
   if (previousBalance !== null && previousBalance !== undefined) {
     const delta = roundMoney(balance - previousBalance);
@@ -153,7 +174,7 @@ function parseFederalTransactions(lines) {
   for (const line of lines) {
     const text = clean(line.text || line);
 
-    if (/^Tran\s+Cheque\s+Balance$/i.test(text)) {
+    if (/^Tran\s+Cheque\b/i.test(text)) {
       started = true;
       pending = [];
       draft = null;
@@ -162,8 +183,33 @@ function parseFederalTransactions(lines) {
     }
 
     if (!started) continue;
-    if (/^GRAND TOTAL\b/i.test(text)) break;
+    if (/^(GRAND TOTAL|Abbreviations Used)\b/i.test(text)) break;
     if (isHeaderOrFooter(text)) continue;
+
+    // "DD-MON-YYYY" layout: one line holds both dates, the particulars start, the type, the Tran ID, the amount and
+    // the balance; the rest of the narration wraps BELOW it (never above), so it always belongs to this row.
+    const inlineRow = parseInlineRow(text);
+    if (inlineRow) {
+      const { withdrawal, deposit } = classifyByBalance(inlineRow.amount, inlineRow.balance, previousBalance);
+      current = {
+        sequence: transactions.length + 1,
+        date: inlineRow.date,
+        valueDate: inlineRow.valueDate,
+        particulars: compactParticulars([inlineRow.particulars]),
+        chequeNo: inlineRow.tranId,
+        tranType: inlineRow.tranType,
+        withdrawal,
+        deposit,
+        balance: inlineRow.balance,
+        type: inlineRow.balanceType,
+        narrationBelow: true,
+      };
+      transactions.push(current);
+      previousBalance = inlineRow.balance;
+      draft = null;
+      pending = [];
+      continue;
+    }
 
     const dateLine = parseDateLine(text);
     if (dateLine) {
@@ -210,7 +256,7 @@ function parseFederalTransactions(lines) {
     if (draft) {
       draft.parts.push(text);
     } else if (current) {
-      if (isLikelyNextTransactionPrefix(text)) {
+      if (!current.narrationBelow && isLikelyNextTransactionPrefix(text)) {
         pending = [text];
         current = null;
       } else {

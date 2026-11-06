@@ -11,6 +11,7 @@ await import("./bccb-passbook-photos.test.mjs");
 await import("./tjsb-011763.test.mjs");
 await import("./narration-page-break.test.mjs");
 await import("./kotak-5611535323.test.mjs");
+await import("./federal-dd-mon-yyyy.test.mjs");
 await import("./provided-samples.test.mjs");
 await import("./icici-9043-detailed.test.mjs");
 await import("./idbi-rep31-ledger.test.mjs");
