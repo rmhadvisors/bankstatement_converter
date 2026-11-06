@@ -27,6 +27,7 @@ import { isVvsbLayout, parseVvsbTransactions } from "./vvsbParser.js";
 import { isHdfcOcrLayout, parseHdfcOcrStatement } from "./hdfcOcrParser.js";
 import { isHdfcWordBoxLayout, parseHdfcWordBoxStatement } from "./hdfcWordBoxParser.js";
 import { isHdfcStatementLayout, parseHdfcStatementTransactions } from "./parsers/hdfcStatementParser.js";
+import { isCsbLayout, parseCsbTransactions } from "./parsers/csbParser.js";
 import { isPassbookLayout, parsePassbookStatement } from "./passbookParser.js";
 import { buildValidationReport, correctDebitCreditByBalance, removeDuplicateTransactions } from "./validation.js";
 import { detectBank } from "./parsers/detector.js";
@@ -1194,6 +1195,12 @@ function parseStatement(extraction) {
         })),
       );
     }
+  } else if (extraction.source === "pdf" && isCsbLayout(lines)) {
+    detectedFormat = "csb";
+    const csb = parseCsbTransactions(lines);
+    transactions = csb.transactions;
+    parserPrintedTotals = csb.printedTotals;
+    for (const issue of csb.reconciliationIssues) logs.push({ level: "error", stage: "parse", message: issue });
   } else if (isBccbAccountStatementLayout(lines)) {
     detectedFormat = "bccb-account-statement";
     const bccb = parseBccbAccountStatementTransactions(lines);
