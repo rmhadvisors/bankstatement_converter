@@ -35,6 +35,7 @@ await import("./creditcard/server.test.mjs");
 await import("./creditcard/axis-apostrophe.test.mjs");
 await import("./creditcard/client-cards.test.mjs");
 await import("./creditcard/ccFallback.test.mjs");
+await import("./creditcard/sbi-summary.test.mjs");
 await import("./invoice/validate.test.mjs");
 await import("./invoice/tally.test.mjs");
 await import("./invoice/images.test.mjs");
