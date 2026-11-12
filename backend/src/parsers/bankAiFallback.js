@@ -49,7 +49,8 @@ const READ_SCHEMA = {
 };
 
 const SYSTEM = `You transcribe bank statement page images into JSON. Copy every number exactly as printed; never calculate, round, infer or correct a number. Use null for anything not printed.
-- One entry per page, with that page's transaction rows in printed order. Skip headers, footers, page notes and legends; skip the opening-balance line (B/F, brought forward) but report it as openingBalance.
+- One entry per page, with that page's transaction rows in printed order. Skip headers, footers, page notes and legends; skip the opening-balance line (B/F, brought forward) but report it as openingBalance (on the first page only). Skip every "Brought Forward", "Carried Forward", "Carried Over" and "Balance C/F" line on later pages: they repeat the running balance and are not transactions.
+- Photos of passbooks may be tilted, rotated, shadowed or show two half-pages: read the rows in printed order, one entry per printed page, and ignore anything outside the table.
 - date: YYYY-MM-DD. description: the full narration, including wrapped lines. chequeNo: the cheque/reference number column if there is one.
 - withdrawal and deposit: decide by the column the amount is printed in (or the Dr/Cr marker), never by how the balance moved. Plain positive numbers.
 - balance: the running balance after the row. A balance printed Dr (overdrawn) is negative; Cr or unmarked is positive.
@@ -133,6 +134,7 @@ function buildStatement(pageResults, meta, usages, model) {
     ordered.filter((page) => pageResults.get(page).pageTotals).map((page) => [page, { withdrawal: money(pageResults.get(page).pageTotals.withdrawal), deposit: money(pageResults.get(page).pageTotals.deposit) }]),
   );
   const failed = failingPages(transactions, pageTotals);
+  for (const page of ordered) if (pageResults.get(page).missing) failed.add(page);
   const printed = meta.printed || {};
   const printedTotals = {
     source: "printed",
@@ -197,6 +199,8 @@ async function readStatementWithAi(filePath, { provider = geminiProvider(), rend
       for (const key of ["bank", "accountName", "accountNumber", "ifsc", "period", "openingBalance"]) if (meta[key] == null && reply[key] != null) meta[key] = reply[key];
       meta.printed = { ...meta.printed, ...Object.fromEntries(Object.entries(reply.printed || {}).filter(([, value]) => value !== null && value !== undefined)) };
       for (const page of pages) pageResults.set(page.page, { rows: page.rows || [], pageTotals: page.pageTotals || null });
+      // A page the model skipped is a failing page (re-read once), never silently dropped.
+      for (const page of group) if (!pages.some((p) => p.page === page)) pageResults.set(page, { rows: [], pageTotals: null, missing: true });
     }
   };
 

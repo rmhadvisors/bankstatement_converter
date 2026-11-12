@@ -36,10 +36,10 @@ function setFuelReader(fn) {
 async function handleFuelConvertSubmit(request) {
   const form = await request.formData();
   const file = form.get("file");
-  if (!(file instanceof File)) return fuelError("NO_FILES", "Choose the register PDF.");
+  if (!(file instanceof File)) return fuelError("NO_FILES", "Choose the register PDF or photo.");
   if (file.size > MAX_FILE_BYTES) return fuelError("FILE_TOO_LARGE", `${file.name} is larger than 20 MB.`);
   const buffer = Buffer.from(await file.arrayBuffer());
-  if (sniffType(buffer) !== "pdf") return fuelError("FUEL_REGISTER_NOT_PDF", "The fuel sales register must be a PDF.");
+  if (!sniffType(buffer)) return fuelError("FUEL_REGISTER_NOT_PDF", "The fuel sales register must be a PDF or a JPG, PNG, WEBP or HEIC photo.");
   if (reader === defaultReader && !savedReadingPath() && !providerConfigured("gemini")) return fuelError("GEMINI_KEY_MISSING", "Gemini is not configured (GEMINI_API_KEY is not set).", 503);
 
   const id = crypto.randomUUID();
@@ -51,7 +51,7 @@ async function handleFuelConvertSubmit(request) {
 }
 
 async function runFuelJob(job, buffer) {
-  const path = join(tmpdir(), `fuel-${crypto.randomUUID()}.pdf`);
+  const path = join(tmpdir(), `fuel-${crypto.randomUUID()}`);
   try {
     await writeFile(path, buffer);
     const { reading, images, calls, usage = [] } = await reader({ path });

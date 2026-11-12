@@ -59,6 +59,8 @@ import { isSbiLayout, parseSbiTransactions } from "./parsers/sbiParser.js";
 import { isSbiOcrLayout, parseSbiOcrTransactions } from "./parsers/sbiOcrParser.js";
 import { isIciciDetailedLayout, parseIciciDetailedTransactions } from "./parsers/iciciDetailedParser.js";
 import { isBccbPassbookLayout, parseBccbPassbookTransactions } from "./parsers/bccbPassbookParser.js";
+import { isDrCrPassbookLayout, parseDrCrPassbook } from "./parsers/drCrPassbookParser.js";
+import { isChainPassbookLayout, parseChainPassbook } from "./parsers/chainPassbookParser.js";
 import {
   isGreaterBombayLayoutText,
   isGreaterBombayContinuationText,
@@ -1153,6 +1155,12 @@ function parseStatement(extraction) {
     const idfc = parseIdfcFirstTransactions(lines);
     transactions = idfc.transactions;
     parserPrintedTotals = idfc.printedTotals;
+  } else if (extraction.source === "ocr" && isChainPassbookLayout(lines)) {
+    detectedFormat = "chain-passbook";
+    const passbook = parseChainPassbook(lines);
+    transactions = passbook.transactions;
+    // Derived or unconfirmed rows are findings: needs_review until a person checks them.
+    for (const message of passbook.issues) logs.push({ level: "error", stage: "parse", message });
   } else if (isBccbPassbookLayout(lines)) {
     detectedFormat = "bccb-passbook";
     const passbook = parseBccbPassbookTransactions(lines);
@@ -1162,6 +1170,12 @@ function parseStatement(extraction) {
       logs.push({ level: "warn", stage: "parse", message: `No passbook rows found on page(s) ${passbook.skippedPages.join(", ")}.` });
     }
     for (const message of passbook.chainResets) logs.push({ level: "warn", stage: "parse", message });
+  } else if (extraction.source === "ocr" && isDrCrPassbookLayout(lines)) {
+    detectedFormat = "drcr-passbook";
+    const passbook = parseDrCrPassbook(lines);
+    transactions = passbook.transactions;
+    // Repaired/derived rows are real findings: the file is needs_review until a person checks them.
+    for (const message of passbook.issues) logs.push({ level: "error", stage: "parse", message });
   } else if (detectedFormat === "icici-detailed" || isIciciDetailedLayout(lines)) {
     detectedFormat = "icici-detailed";
     const icici = parseIciciDetailedTransactions(lines);

@@ -97,3 +97,11 @@ test("failing file whose AI read does not reconcile comes back needs_review, nev
   assert.equal(statement.review.status, "needs_review"); // there was no normal result to keep
   assert.equal(statement.aiAssisted.pages, 2);
 });
+
+test("a page the model skipped is re-read, not dropped", async () => {
+  const provider = fakeProvider(saved("read-page1-only.json"), saved("read-ok.json"));
+  const statement = await readStatementWithAi(pdf("bob-502.pdf"), { provider, render });
+  assert.equal(provider.calls, 2);
+  assert.equal(statement.transactions.length, 4);
+  assert.equal(statement.review.status, "ok");
+});
