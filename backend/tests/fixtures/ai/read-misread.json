@@ -1,0 +1,66 @@
+{
+ "bank": "TEST BANK",
+ "accountName": "DEMO TRADERS",
+ "accountNumber": "0001",
+ "ifsc": null,
+ "period": "01-01-2026 to 04-01-2026",
+ "openingBalance": 1000,
+ "printed": {
+  "openingBalance": 1000,
+  "closingBalance": 1210.5,
+  "withdrawal": 300,
+  "deposit": 510.5
+ },
+ "pages": [
+  {
+   "page": 1,
+   "pageTotals": {
+    "withdrawal": 100,
+    "deposit": 500
+   },
+   "rows": [
+    {
+     "date": "2026-01-01",
+     "description": "UPI TO A",
+     "chequeNo": null,
+     "withdrawal": 100,
+     "deposit": null,
+     "balance": 900
+    },
+    {
+     "date": "2026-01-02",
+     "description": "SALARY",
+     "chequeNo": null,
+     "withdrawal": null,
+     "deposit": 500,
+     "balance": 1400
+    }
+   ]
+  },
+  {
+   "page": 2,
+   "pageTotals": {
+    "withdrawal": 200,
+    "deposit": 10.5
+   },
+   "rows": [
+    {
+     "date": "2026-01-03",
+     "description": "ATM WDL",
+     "chequeNo": null,
+     "withdrawal": 200,
+     "deposit": null,
+     "balance": 1020
+    },
+    {
+     "date": "2026-01-04",
+     "description": "INT CREDIT",
+     "chequeNo": null,
+     "withdrawal": null,
+     "deposit": 10.5,
+     "balance": 1210.5
+    }
+   ]
+  }
+ ]
+}

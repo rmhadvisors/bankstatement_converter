@@ -166,9 +166,10 @@ export async function convertPdfViaApi(
 export type BankConvertResult = ApiConvertResult & {
   reviewStatus: "ok" | "needs_review";
   reviewReasons: string[];
+  aiAssisted: boolean;
 };
 
-function readReviewHeaders(response: Response): Pick<BankConvertResult, "reviewStatus" | "reviewReasons"> {
+function readReviewHeaders(response: Response): Pick<BankConvertResult, "reviewStatus" | "reviewReasons" | "aiAssisted"> {
   let reviewReasons: string[] = [];
   try {
     reviewReasons = JSON.parse(decodeURIComponent(response.headers.get("x-review-reasons") || "%5B%5D"));
@@ -176,7 +177,7 @@ function readReviewHeaders(response: Response): Pick<BankConvertResult, "reviewS
     reviewReasons = [];
   }
   const reviewStatus = response.headers.get("x-conversion-status") === "needs_review" ? "needs_review" : "ok";
-  return { reviewStatus, reviewReasons };
+  return { reviewStatus, reviewReasons, aiAssisted: response.headers.get("x-ai-assisted") === "true" };
 }
 
 export type ReconciliationStatus = "OK" | "MISMATCH" | "UNVERIFIED";

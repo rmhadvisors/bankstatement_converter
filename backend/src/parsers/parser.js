@@ -83,7 +83,7 @@ function parseAmount(raw) {
   const value = Number(normalized.replace(/,/g, "").replace(/Cr|Dr/gi, ""));
   if (!Number.isFinite(value)) return null;
 
-  return /^-/.test(text) || /\bDr$/i.test(text) ? -Math.abs(value) : value;
+  return /^-/.test(text) || /Dr$/i.test(text) ? -Math.abs(value) : value;
 }
 
 const monthNames = {

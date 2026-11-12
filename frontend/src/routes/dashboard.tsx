@@ -56,6 +56,8 @@ type Conversion = {
   rows_count: number;
   // Set when the file converted but doesn't reconcile: shown as "Needs review", never as a plain success.
   review_reasons?: string[];
+  // Set when Gemini read the pages because the normal parsers could not (BANK_AI_FALLBACK).
+  ai_assisted?: boolean;
   created_at: string;
 };
 
@@ -247,6 +249,7 @@ function Dashboard() {
           status: "converted" as const,
           rows_count: rowsCount,
           ...(needsReview ? { review_reasons: result.reviewReasons } : {}),
+          ...(result.aiAssisted ? { ai_assisted: true } : {}),
         };
         history = [finished, ...history.filter((i) => i.id !== base.id)];
         saveHistory(history);
@@ -605,6 +608,7 @@ function Dashboard() {
                           {fmtSize(c.file_size)} -{" "}
                           {c.statement_type === "credit_card" ? "Credit card" : c.type === "pdf" ? "PDF" : "Scanned"} -{" "}
                           {new Date(c.created_at).toLocaleString()}
+                          {c.ai_assisted ? " - AI-assisted" : ""}
                         </div>
                         {c.review_reasons?.length ? (
                           <ul className="mt-1 list-disc pl-4 text-xs text-amber-700 dark:text-amber-400" role="alert">

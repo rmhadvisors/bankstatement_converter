@@ -289,7 +289,9 @@ function addStatementSheet(workbook, statement) {
   }
   if (addOpening && !chronological) sheet.addRow(openingRow);
 
-  const totals = getTotals({ transactions, printedTotals: statement.printedTotals });
+  // BOB overdraft and AI-read statements: GRAND TOTAL is summed from the rows, not copied from the PDF.
+  const printedTotals = statement.detectedFormat === "bank-of-baroda-savings" || statement.aiAssisted ? null : statement.printedTotals;
+  const totals = getTotals({ transactions, printedTotals });
   const totalRow = sheet.addRow([
     "",
     "",
