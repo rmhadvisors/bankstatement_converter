@@ -201,8 +201,8 @@ function FuelRegisterPage() {
   function pickFile(files: FileList | null) {
     const picked = files?.[0];
     if (!picked) return;
-    if (picked.type !== "application/pdf" && !/.pdf$/i.test(picked.name)) {
-      toast.error("Please choose a PDF file.");
+    if (!picked.type.startsWith("image/") && picked.type !== "application/pdf" && !/\.(pdf|jpe?g|png|webp|heic)$/i.test(picked.name)) {
+      toast.error("Please choose a PDF or an image (JPG, PNG, WEBP, HEIC).");
       return;
     }
     setFile(picked);
@@ -358,7 +358,7 @@ function FuelRegisterPage() {
             className={`mt-4 rounded-xl border-2 border-dashed p-6 text-center ${drag ? "border-primary bg-primary/5" : "border-muted-foreground/25"}`}
           >
             <UploadCloud className="mx-auto h-8 w-8 text-muted-foreground" />
-            <p className="mt-2 text-sm">{file ? file.name : "Drop the register PDF here or"}</p>
+            <p className="mt-2 text-sm">{file ? file.name : "Drop the register PDF or photo here or"}</p>
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
@@ -369,7 +369,7 @@ function FuelRegisterPage() {
             <input
               ref={fileRef}
               type="file"
-              accept=".pdf,application/pdf"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,application/pdf,image/*"
               className="hidden"
               onChange={(e) => (pickFile(e.target.files), (e.target.value = ""))}
             />
