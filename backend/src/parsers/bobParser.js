@@ -74,6 +74,7 @@ function extractAmountItems(items = []) {
       text: clean(item.text),
       value: Math.abs(parseAmount(item.text)),
       isCreditBalance: /Cr$/i.test(clean(item.text)),
+      isDebitBalance: /Dr$/i.test(clean(item.text)),
     }))
     .filter((item) => isAmountText(item.text) && item.value !== null);
 }
@@ -320,6 +321,9 @@ function isBobSavingsNoiseLine(text) {
     !text ||
     /^-+$/.test(text) ||
     /^BANK OF BARODA\b/i.test(text) ||
+    // Browser "print to PDF" page footer: "Transaction Details Page 1 of 7" + the report URL line.
+    /^Transaction Details\s+Page \d+ of \d+/i.test(text) ||
+    /^https?:\/\//i.test(text) ||
     /^ADDRESS:/i.test(text) ||
     /^HELPLINE NO\.?\s*:/i.test(text) ||
     /^BRANCH PHONE NO\.?\s*:/i.test(text) ||
@@ -364,7 +368,8 @@ function isBobSavingsNoiseLine(text) {
   );
 }
 
-const LEADING_DATE_RE = /^(\d{2}-\d{2}-\d{2})\s*(.*)$/;
+// (?!\d) keeps the browser-print footer "...j... 04-11-2026" from reading as date 04-11-20 + "26".
+const LEADING_DATE_RE = /^(\d{2}-\d{2}-\d{2})(?!\d)\s*(.*)$/;
 
 function parseBankOfBarodaSavingsTransactions(lines) {
   const columns = detectBobSavingsColumns(lines);
@@ -402,6 +407,11 @@ function parseBankOfBarodaSavingsTransactions(lines) {
     for (const item of amountItems) {
       if (item.isCreditBalance) {
         balance = item.value;
+        continue;
+      }
+      // Overdraft/loan accounts print "87,32,127.12Dr": a debit balance is negative.
+      if (item.isDebitBalance) {
+        balance = -item.value;
         continue;
       }
       const column = nearestColumn(item.x, columns);

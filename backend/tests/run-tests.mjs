@@ -6,6 +6,8 @@ try {
 }
 
 await import("./bob-502.test.mjs");
+await import("./bob-273.test.mjs");
+await import("./bank-ai-fallback.test.mjs");
 await import("./bccb-june-26.test.mjs");
 await import("./bccb-passbook-photos.test.mjs");
 await import("./tjsb-011763.test.mjs");

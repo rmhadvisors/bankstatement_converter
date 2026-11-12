@@ -69,12 +69,13 @@ async function imageFileToJpeg(buffer, type, rotate) {
   return toJpeg(canvasApi, image, image.width, image.height, rotate % 360);
 }
 
-async function renderPdfPages(buffer, rotate, longSide = MAX_LONG_SIDE) {
+// maxPages: the upload limit (a bank statement read passes its own).
+async function renderPdfPages(buffer, rotate, longSide = MAX_LONG_SIDE, maxPages = MAX_PDF_PAGES) {
   const canvasApi = await loadCanvas();
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer), verbosity: pdfjs.VerbosityLevel.ERRORS }).promise;
-  if (pdf.numPages > MAX_PDF_PAGES) {
-    throw invoiceError("INVOICE_TOO_MANY_PAGES", `This PDF has ${pdf.numPages} pages; an invoice upload can have at most ${MAX_PDF_PAGES}.`);
+  if (pdf.numPages > maxPages) {
+    throw invoiceError("INVOICE_TOO_MANY_PAGES", `This PDF has ${pdf.numPages} pages; an invoice upload can have at most ${maxPages}.`);
   }
   const pages = [];
   for (let n = 1; n <= pdf.numPages; n++) {
@@ -102,4 +103,4 @@ async function prepareInvoiceFile(filePath, { rotate = 0, longSide } = {}) {
   return { kind: "images", images: await renderPdfPages(buffer, rotate, longSide) };
 }
 
-export { invoiceError, prepareInvoiceFile, sniffType, MAX_LONG_SIDE };
+export { invoiceError, prepareInvoiceFile, renderPdfPages, sniffType, MAX_LONG_SIDE };

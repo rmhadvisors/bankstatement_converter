@@ -15,6 +15,7 @@ import { buildValidationReport, reviewStatus } from "./validation.js";
 import { roundMoney } from "./parsers/common.js";
 import { isBccbJune2026Statement, buildBccbJune2026Accounts } from "./verifiedStatements/bccbJune2026.js";
 import { isCreditCardStatement } from "../creditcard/ccDetector.js";
+import { aiFallbackEnabled, readStatementWithAi } from "./bankAiFallback.js";
 
 // Every format's Excel output is deliberately just the bare "Statement of Account" table (see
 // excelWriter.js's addStatementSheet) -- no Validation & Reconciliation, Error Logs, or OCR
@@ -320,6 +321,34 @@ async function convertPdfToStatement(filePath, options = {}) {
   return statement;
 }
 
+// Errors Gemini could not fix: not a bank statement, locked, or nothing readable on the pages.
+const NO_AI_ERRORS = new Set(["CREDIT_CARD_STATEMENT", "PASSWORD_REQUIRED", "INVALID_PASSWORD", "PDF_NO_READABLE_CONTENT", "PDF_PREFLIGHT_OPEN_TOO_SLOW"]);
+
+// BANK_AI_FALLBACK: when the normal read fails, finds no rows or ends needs_review (never when it is ok), Gemini
+// reads the pages. Its result replaces the normal one only if it reconciles, or if there was no normal result.
+// options.ai ({ enabled, provider, render }) is for tests.
+async function convertStatement(filePath, options = {}) {
+  let statement = null;
+  let failure = null;
+  try {
+    statement = await convertPdfToStatement(filePath, options);
+  } catch (error) {
+    failure = error;
+  }
+  const ai = options.ai || {};
+  const wanted = failure ? !NO_AI_ERRORS.has(failure.code) : !statement.accounts && statement.review?.status !== "ok";
+  if (wanted && !options.password && (ai.enabled ?? aiFallbackEnabled())) {
+    try {
+      const read = await readStatementWithAi(filePath, { provider: ai.provider, render: ai.render });
+      if (read && (failure || read.review.status === "ok")) return read;
+    } catch (error) {
+      console.warn(`[bank-ai-fallback] AI read failed: ${error?.code || "error"}`);
+    }
+  }
+  if (failure) throw failure;
+  return statement;
+}
+
 // A workbook write can produce bytes that look done (buffer/file has content, no thrown error)
 // but aren't actually a valid xlsx -- e.g. a partial write from a killed/racing process, or a
 // truncated buffer from a stream that closed early. Reopening with the same library used to
@@ -335,7 +364,7 @@ async function verifyWorkbookBuffer(buffer) {
 }
 
 async function convertPdfToExcelBuffer(filePath, options = {}) {
-  const statement = await convertPdfToStatement(filePath, options);
+  const statement = await convertStatement(filePath, options);
 
   if (statement.accounts) {
     const buffer = await buildMultiAccountWorkbookBuffer(statement.accounts);
@@ -353,7 +382,7 @@ async function convertPdfToExcelBuffer(filePath, options = {}) {
 }
 
 async function convertPdfToExcelFile(filePath, outputPath, options = {}) {
-  const statement = await convertPdfToStatement(filePath, options);
+  const statement = await convertStatement(filePath, options);
 
   if (statement.accounts) {
     await writeMultiAccountWorkbookFile(statement.accounts, outputPath);
