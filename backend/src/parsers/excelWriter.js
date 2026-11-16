@@ -245,18 +245,17 @@ function addStatementSheet(workbook, statement) {
     "Withdrawals (INR)",
     "Deposits (INR)",
     "Balance (INR)",
-    "Type",
   ];
   styleHeader(headerRow);
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = "A1:J1";
+  sheet.autoFilter = "A1:I1";
 
   // Real Excel dates (shown dd-mm-yyyy); a missing/invalid date stays an empty cell.
   const excelDate = (date) => (date instanceof Date && !Number.isNaN(date.getTime()) ? date : null);
   // Opening Balance first, at the chronological start (the end for a newest-first statement).
   const openingBalance = statement.printedTotals?.openingBalance ?? statement.reconciliation?.openingBalance ?? null;
   const chronological = isChronological(transactions);
-  const openingRow = ["", "", "Opening Balance", "", "", "", null, null, openingBalance, ""];
+  const openingRow = ["", "", "Opening Balance", "", "", "", null, null, openingBalance];
   // Some parsers already emit the bank's own opening line (BOB "Opening Balance", SBI "BROUGHT FORWARD").
   const isOpeningLine = (row) => row && !row.withdrawal && !row.deposit && /^(?:opening balance|brought forward|balance b\/?f|b\/f)\b/i.test(String(row.particulars || "").trim());
   const hasOwnOpening = isOpeningLine(transactions[0]) || isOpeningLine(transactions.at(-1));
@@ -281,10 +280,6 @@ function addStatementSheet(workbook, statement) {
       transaction.withdrawal,
       transaction.deposit,
       transaction.balance,
-      // No direction-based guess here: a parser that didn't capture the source's own printed
-      // Cr/Dr suffix for this row has no reliable signal for Type at all (a debit row's own
-      // balance is routinely still printed "Cr"), so leaving it blank is correct, not a gap.
-      transaction.type || "",
     ]);
   }
   if (addOpening && !chronological) sheet.addRow(openingRow);
@@ -302,10 +297,9 @@ function addStatementSheet(workbook, statement) {
     totals.withdrawal,
     totals.deposit,
     totals.closingBalance,
-    "",
   ]);
 
-  const widths = [12, 12, 42, 10, 12, 14, 16, 16, 16, 8];
+  const widths = [12, 12, 42, 10, 12, 14, 16, 16, 16];
   widths.forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });

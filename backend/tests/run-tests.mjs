@@ -4,6 +4,7 @@ try {
 } catch (e) {
   // Ignored if loadEnvFile doesn't exist or .env is missing
 }
+delete process.env.INVOICE_PARTY_SIDE; // a deployment setting, not a test input
 
 await import("./bob-502.test.mjs");
 await import("./bob-273.test.mjs");

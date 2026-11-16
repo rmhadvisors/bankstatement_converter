@@ -166,7 +166,7 @@ function gstRows(entry, gstLines) {
 
 // entries: [{ invoice, result, sourceFile, entryType, partyName }]; parties: [{ name, gstin, entryType }]
 // options.includePartySettings: add the Party Settings sheet (off by default).
-async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySettings = false } = {}) {
+async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySettings = false, failed = [] } = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Bank Statement Convertor";
   const sorted = [...entries].sort((a, b) => (parseDmy(a.invoice.invoiceDate)?.getTime() ?? 0) - (parseDmy(b.invoice.invoiceDate)?.getTime() ?? 0));
@@ -191,7 +191,7 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
       const added = gst.addRow([
         parseDmy(invoice.invoiceDate),
         entry.partyName,
-        invoice.supplier?.gstin ?? "",
+        (entry.salesMode ? invoice.buyer : invoice.supplier)?.gstin ?? "",
         invoice.invoiceNo ?? "",
         row.taxable,
         row.igst,
@@ -321,6 +321,11 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
   }
   finish(review, { moneyColumns: [5], wrapColumns: [6, 7], highlight: reviewYellow });
 
+  // Errors: files that could not be read are listed here, never silently left out.
+  const errors = addSheet(workbook, "Errors", ["SOURCE", "WHY IT WAS NOT CONVERTED"], [34, 90]);
+  for (const item of failed) errors.addRow([item.sourceFile, item.message]);
+  finish(errors, { wrapColumns: [2] });
+
   if (includePartySettings) {
     const settings = addSheet(workbook, "Party Settings", ["SR.NO", "PARTY NAME", "ENTRY TYPE", "OUTPUT SHEET"], [7, 30, 12, 16]);
     const outputSheet = { STOCK: "GST Entries", NORMAL: "GST Entries", TCS: "TCS Entries", IMPORT: "Import file format (pending)" };
@@ -338,4 +343,60 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
   return workbook.xlsx.writeBuffer();
 }
 
-export { buildTallyWorkbookBuffer };
+// The invoice export: ONE "GST Entries" sheet, one row per invoice line (an invoice with no lines gets one row from its
+// totals), plus an "Errors" sheet only when a file could not be read. Flagged invoices are yellow, nothing else is added.
+// Line tax = line value x rate; where one rate covers the invoice and the printed CGST/SGST/IGST differs by rounding,
+// the difference goes on the last line so the invoice adds up to its printed tax.
+// ponytail: buildTallyWorkbookBuffer (multi-sheet) is no longer used by the app; kept for its tests until the client confirms.
+async function buildInvoiceSheetBuffer(entries, { failed = [] } = {}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Bank Statement Convertor";
+  const sorted = [...entries].sort((a, b) => (parseDmy(a.invoice.invoiceDate)?.getTime() ?? 0) - (parseDmy(b.invoice.invoiceDate)?.getTime() ?? 0));
+  const sheet = addSheet(workbook, "GST Entries", ["DATE", "PARTY NAME", "GSTIN", "INVOICE NO", "HSN CODE", "QUANTITY(NOS/SQFT/MTR)", "RATE", "TAXABLE AMOUNT", "IGST", "CGST", "SGST", "GST RATE", "STOCK (IF APPLICABLE)"], [12, 30, 19, 15, 11, 14, 11, 16, 11, 12, 12, 10, 40]);
+  const yellow = new Set();
+  const gstRateCell = (r, values) => {
+    const [taxable, igst, cgst, sgst] = values;
+    return { formula: `IF(H${r}=0,"",SUM(I${r}:K${r})/H${r})`, result: has(taxable) && taxable !== 0 ? round2(((igst ?? 0) + (cgst ?? 0) + (sgst ?? 0)) / taxable) : "" };
+  };
+  for (const entry of sorted) {
+    const { invoice, result } = entry;
+    const t = invoice.totals ?? {};
+    const lines = invoice.lineItems ?? [];
+    const intra = result.computed.intraState;
+    const rateOf = (line) => (has(line.gstRate) ? line.gstRate : null);
+    const rows = lines.map((line) => {
+      const taxable = lineValue(line);
+      const rate = rateOf(line);
+      const tax = rate === null || taxable === null ? null : round2((taxable * rate) / (intra === false ? 100 : 200));
+      const split = (interstate) => (tax === null ? null : interstate === (intra === false) ? tax : 0);
+      return { item: line.description ?? "", hsn: line.hsnSac ?? null, qty: line.qty ?? null, rate: line.rate ?? null, taxable, igst: split(true), cgst: split(false), sgst: split(false) };
+    });
+    if (!rows.length) rows.push({ hsn: null, qty: null, rate: null, taxable: result.computed.taxable, igst: has(t.igst) ? t.igst : null, cgst: has(t.cgst) ? t.cgst : null, sgst: has(t.sgst) ? t.sgst : null });
+    else {
+      const rates = new Set(lines.map(rateOf));
+      for (const key of ["igst", "cgst", "sgst"]) {
+        if (!has(t[key])) continue;
+        if (rates.size === 1 && !rates.has(null)) {
+          const sum = round2(rows.reduce((a, row) => a + (row[key] ?? 0), 0));
+          if (sum !== t[key] && Math.abs(sum - t[key]) <= 1) rows.at(-1)[key] = round2(rows.at(-1)[key] + t[key] - sum);
+        } else if (rows.every((row) => row[key] === null)) rows[0][key] = t[key]; // no line rate written: the printed tax goes on the first line
+      }
+    }
+    for (const row of rows) {
+      const added = sheet.addRow([parseDmy(invoice.invoiceDate), entry.partyName, (entry.salesMode ? invoice.buyer : invoice.supplier)?.gstin ?? "", invoice.invoiceNo ?? "", row.hsn, row.qty, row.rate, row.taxable, row.igst, row.cgst, row.sgst, null, row.item ?? ""]);
+      added.getCell(12).value = gstRateCell(added.number, [row.taxable, row.igst, row.cgst, row.sgst]);
+      if (result.status !== "OK") yellow.add(added.number);
+    }
+  }
+  if (sheet.rowCount > 1) totalRow(sheet, "TOTAL", 4, [8, 9, 10, 11], 2);
+  finish(sheet, { moneyColumns: [7, 8, 9, 10, 11], dateColumns: [1], percentColumns: [12], highlight: yellow });
+
+  if (failed.length) {
+    const errors = addSheet(workbook, "Errors", ["SOURCE", "WHY IT WAS NOT CONVERTED"], [34, 90]);
+    for (const item of failed) errors.addRow([item.sourceFile, item.message]);
+    finish(errors, { wrapColumns: [2] });
+  }
+  return workbook.xlsx.writeBuffer();
+}
+
+export { buildInvoiceSheetBuffer, buildTallyWorkbookBuffer };

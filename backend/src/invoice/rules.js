@@ -67,6 +67,15 @@ function applyReadingRules(input) {
     if (line.unit && /^(?:sq\.?\s*f(?:ee)?t|sft|sq\.?\s*m(?:tr)?s?|r\.?\s*ft|running\s*ft)$/i.test(line.unit.trim())) line.unit = normalizeUnit(line.unit.trim());
   }
 
+  // A 4-8 digit whole "qty" that does not multiply out to the amount is the HSN/SAC code read into the wrong column.
+  lines.forEach((line, i) => {
+    if (line.hsnSac || !Number.isInteger(line.qty) || !/^\d{4,8}$/.test(String(line.qty))) return;
+    if (has(line.rate) && has(line.amount) && Math.abs(line.qty * line.rate - line.amount) <= 1) return;
+    line.hsnSac = String(line.qty);
+    line.qty = null;
+    derived.push(`Line ${line.sno ?? i + 1}: ${line.hsnSac} is 4+ digits and does not match rate x amount, so it is the HSN, not the quantity.`);
+  });
+
   // Line qty/unit written inside the description (no qty column on the form).
   lines.forEach((line, i) => {
     if (has(line.qty) || !line.description) return;
@@ -77,6 +86,35 @@ function applyReadingRules(input) {
     invoice.confidence[`lineItems[${i}].qty`] ??= "medium";
     derived.push(`Line ${line.sno ?? i + 1}: ${/^(sqft|sqm|rft)$/.test(line.unit ?? "") ? "area" : "qty"} ${line.qty} ${line.unit} taken from the description.`);
   });
+
+  // Still no qty: amount / rate.
+  lines.forEach((line, i) => {
+    if (has(line.qty) || !has(line.rate) || line.rate <= 0 || !has(line.amount)) return;
+    line.qty = round2(line.amount / line.rate);
+    invoice.confidence[`lineItems[${i}].qty`] ??= "medium";
+    derived.push(`Line ${line.sno ?? i + 1}: qty ${line.qty} worked out as amount / rate.`);
+  });
+
+  // Taxable amount and CGST/SGST from each other (a missing one only; written values stay).
+  const half = (rate) => (has(rate) ? rate : null);
+  const taxRate = half(t.cgstRate) ?? half(t.sgstRate);
+  if (!has(t.cgst) && has(t.sgst)) (t.cgst = t.sgst, derived.push("CGST taken as equal to SGST."));
+  else if (!has(t.sgst) && has(t.cgst)) (t.sgst = t.cgst, derived.push("SGST taken as equal to CGST."));
+  const linesSum = lines.every((line) => has(line.amount)) && lines.length ? round2(lines.reduce((sum, line) => sum + line.amount, 0)) : null;
+  if (!has(t.taxableAmount) && !has(t.subtotal) && (has(t.cgst) || has(t.igst))) { // only when a tax amount was written
+    if (has(t.cgst) && taxRate) (t.taxableAmount = round2((t.cgst * 100) / taxRate), derived.push(`Taxable amount ${t.taxableAmount} worked out from CGST ${t.cgst} at ${taxRate}%.`));
+    else if (linesSum !== null) (t.taxableAmount = linesSum, derived.push(`Taxable amount ${linesSum} taken as the sum of the lines.`));
+    else if (has(t.grandTotal) && (has(t.cgst) || has(t.igst))) (t.taxableAmount = round2(t.grandTotal - (t.cgst ?? 0) - (t.sgst ?? 0) - (t.igst ?? 0) - (t.roundOff ?? 0)), derived.push(`Taxable amount ${t.taxableAmount} worked out as grand total - taxes.`));
+  }
+  const taxable0 = has(t.taxableAmount) ? t.taxableAmount : null;
+  if (taxable0 && !taxRate && has(t.cgst) && has(t.sgst) && t.cgst === t.sgst) {
+    const each = round2((t.cgst / taxable0) * 100);
+    const standard = [0.125, 0.5, 1.5, 2.5, 6, 9, 14].find((r) => Math.abs(r - each) <= 0.15);
+    if (standard !== undefined) (t.cgstRate = t.sgstRate = standard, derived.push(`GST rate ${standard * 2}% worked out from CGST / taxable amount.`));
+  } else if (taxable0 && taxRate && !has(t.cgst) && !has(t.igst)) {
+    t.cgst = t.sgst = round2((taxable0 * taxRate) / 100);
+    derived.push(`CGST and SGST ${t.cgst} each worked out from the taxable amount at ${taxRate}%.`);
+  }
 
   // Line GST rate from the invoice-level CGST x% + SGST x% (or IGST x%).
   const invoiceRate = has(t.igstRate) && t.igstRate > 0 ? t.igstRate : has(t.cgstRate) && has(t.sgstRate) && t.cgstRate === t.sgstRate ? t.cgstRate + t.sgstRate : null;

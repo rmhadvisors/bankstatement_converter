@@ -9,7 +9,9 @@ import { renderPdfPages } from "../invoice/images.js";
 import { roundMoney } from "./parsers/common.js";
 import { buildValidationReport, reviewStatus } from "./validation.js";
 
+// A partial read (the code gave up on some pages) goes one page per call: with several hard photos at once the model sometimes returned only the first row.
 const PAGES_PER_CALL = 4;
+const PARTIAL_PAGES_PER_CALL = 1;
 const PAGE_LONG_SIDE = 3000;
 const TOLERANCE = 0.05;
 
@@ -37,7 +39,7 @@ const READ_SCHEMA = {
             items: {
               type: "object",
               properties: { date: { type: "string" }, description: { type: "string" }, chequeNo: str, withdrawal: num, deposit: num, balance: num },
-              required: ["date", "description"],
+              required: ["date", "description", "chequeNo", "withdrawal", "deposit", "balance"], // every key must be written (null if not printed): optional keys let the model stop after the first one
             },
           },
         },
@@ -68,7 +70,7 @@ async function readPages(provider, images, pageNumbers, usages) {
     content.push({ type: "text", text: `Page ${pageNumbers[index]}:` });
     content.push({ type: "image", source: { type: "base64", media_type: image.mediaType, data: Buffer.from(image.data).toString("base64") } });
   });
-  const { text, usage } = await provider.complete({ system: SYSTEM, messages: [{ role: "user", content }], responseSchema: READ_SCHEMA });
+  const { text, usage } = await provider.complete({ system: SYSTEM, messages: [{ role: "user", content }], responseSchema: READ_SCHEMA, thinking: process.env.BANK_AI_THINKING === "off" ? undefined : process.env.BANK_AI_THINKING || "low" }); // transcription needs no deep reasoning, and thinking tokens are the bulk of the bill
   usages.push(usage);
   let reply;
   try {
@@ -128,7 +130,10 @@ function failingPages(rows, pageTotals) {
 }
 
 function buildStatement(pageResults, meta, usages, model) {
+  // Pages in date order when every page has dated rows (a passbook photographed out of order still chains).
+  const dateOf = (page) => { const days = pageResults.get(page).rows.map((row) => Date.parse(row.date)).filter(Number.isFinite).sort((a, b) => a - b); return days[Math.floor(days.length / 2)]; };
   const ordered = [...pageResults.keys()].sort((a, b) => a - b);
+  if (ordered.length > 1 && ordered.every((page) => dateOf(page) !== undefined)) ordered.sort((a, b) => dateOf(a) - dateOf(b) || a - b);
   const transactions = ordered.flatMap((page) => pageResults.get(page).rows.map((row) => toRow(row, page)));
   const pageTotals = new Map(
     ordered.filter((page) => pageResults.get(page).pageTotals).map((page) => [page, { withdrawal: money(pageResults.get(page).pageTotals.withdrawal), deposit: money(pageResults.get(page).pageTotals.deposit) }]),
@@ -172,6 +177,8 @@ function buildStatement(pageResults, meta, usages, model) {
   const chainRows = transactions.filter((row) => row.balance !== null).length;
   if (statement.reconciliation.closingDifference === null && chainRows < 2) reasons.push("Nothing in the statement could verify the AI-read rows (no balances or printed totals).");
   if (failed.size) reasons.push(`Page total or running balance does not match on page(s) ${[...failed].sort((a, b) => a - b).join(", ")}.`);
+  const empty = ordered.filter((page) => !pageResults.get(page).rows.length && !pageResults.get(page).missing);
+  if (empty.length) reasons.push(`No transactions were read on page(s) ${empty.join(", ")} (a cover page, or too unclear).`);
   const undated = transactions.filter((row) => !row.date).length;
   if (undated) reasons.push(`${undated} row(s) have no readable date.`);
   statement.review.status = reasons.length ? "needs_review" : "ok";
@@ -187,33 +194,37 @@ function chunk(list, size) {
 
 // -> an Excel-ready statement ({ ..., aiAssisted, review }) or null when the AI read nothing usable.
 // provider / render are injectable so tests run on saved answers with no network.
-async function readStatementWithAi(filePath, { provider = geminiProvider(), render = renderPdfPages, maxPages = aiMaxPages(), logs = [] } = {}) {
+// pages: read only these page numbers; known: Map(page -> rows already read by code, in this module's row format).
+async function readStatementWithAi(filePath, { pages: onlyPages, known = new Map(), provider = geminiProvider({ model: process.env.GEMINI_MODEL_BANK || "gemini-3.8-flash" }), render = renderPdfPages, maxPages = aiMaxPages(), logs = [] } = {}) {
   const images = await render(await readFile(filePath), 0, PAGE_LONG_SIDE, maxPages);
   const usages = [];
   const pageResults = new Map();
   const meta = {};
+  for (const [page, rows] of known) pageResults.set(page, { rows, pageTotals: null });
 
   const read = async (pageNumbers) => {
-    for (const group of chunk(pageNumbers, PAGES_PER_CALL)) {
+    await Promise.all(chunk(pageNumbers, onlyPages ? PARTIAL_PAGES_PER_CALL : PAGES_PER_CALL).map(async (group) => {
       const { reply, pages } = await readPages(provider, group.map((page) => images[page - 1]), group, usages);
       for (const key of ["bank", "accountName", "accountNumber", "ifsc", "period", "openingBalance"]) if (meta[key] == null && reply[key] != null) meta[key] = reply[key];
       meta.printed = { ...meta.printed, ...Object.fromEntries(Object.entries(reply.printed || {}).filter(([, value]) => value !== null && value !== undefined)) };
       for (const page of pages) pageResults.set(page.page, { rows: page.rows || [], pageTotals: page.pageTotals || null });
       // A page the model skipped is a failing page (re-read once), never silently dropped.
       for (const page of group) if (!pages.some((p) => p.page === page)) pageResults.set(page, { rows: [], pageTotals: null, missing: true });
-    }
+    }));
   };
 
   let outcome;
   try {
-    await read(images.map((_, index) => index + 1));
+    await read(onlyPages ?? images.map((_, index) => index + 1));
     outcome = buildStatement(pageResults, meta, usages, provider.name);
-    if (outcome.failed.size) {
+    // A re-read only helps a few misread pages; when most pages fail the photo itself is the problem and a second call just doubles the bill.
+    const rereadable = [...outcome.failed].filter((page) => !known.has(page));
+    if (rereadable.length && outcome.failed.size <= Math.max(2, images.length / 2)) {
       // One re-read of just the failing pages; kept only if it leaves no more failing pages than before.
       // Rows are replaced wholesale, never edited.
       const before = new Map(pageResults);
       const failedBefore = outcome.failed.size;
-      await read([...outcome.failed]);
+      await read(rereadable); // pages the code already read are only flagged, not paid for again
       outcome = buildStatement(pageResults, meta, usages, provider.name);
       if (outcome.failed.size > failedBefore) {
         pageResults.clear();

@@ -3,6 +3,7 @@
 // binarization, which destroys handwriting, and no page cropping (the model ignores background).
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { PDFDocument } from "pdf-lib";
 import { extractPdf } from "../parsers/pdfExtractor.js";
 
 const require = createRequire(import.meta.url);
@@ -89,6 +90,19 @@ async function renderPdfPages(buffer, rotate, longSide = MAX_LONG_SIDE, maxPages
   return pages;
 }
 
+// A PDF over MAX_PDF_PAGES pages is a book of separate bills (one per page), not one invoice: -> one
+// single-page PDF buffer per page, so each is read on its own (in parallel). Otherwise null.
+// ponytail: assumes one bill per page; a >10-page PDF holding multi-page invoices would be cut apart.
+async function splitBillBook(buffer) {
+  const source = await PDFDocument.load(buffer, { ignoreEncryption: true });
+  if (source.getPageCount() <= MAX_PDF_PAGES) return null;
+  return Promise.all(source.getPageIndices().map(async (i) => {
+    const doc = await PDFDocument.create();
+    doc.addPage((await doc.copyPages(source, [i]))[0]);
+    return Buffer.from(await doc.save());
+  }));
+}
+
 // -> { kind: "text", text, pageCount } | { kind: "images", images: [{ mediaType, data, width, height }] }
 // `rotate` (0/90/180/270, clockwise) comes from the review screen's rotate button; `longSide` raises the
 // page-image size for dense handwritten tables (PDF pages only).
@@ -103,4 +117,4 @@ async function prepareInvoiceFile(filePath, { rotate = 0, longSide } = {}) {
   return { kind: "images", images: await renderPdfPages(buffer, rotate, longSide) };
 }
 
-export { invoiceError, prepareInvoiceFile, renderPdfPages, sniffType, MAX_LONG_SIDE };
+export { invoiceError, prepareInvoiceFile, renderPdfPages, sniffType, splitBillBook, MAX_LONG_SIDE };

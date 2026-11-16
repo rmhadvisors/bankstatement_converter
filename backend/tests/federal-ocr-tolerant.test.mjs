@@ -155,13 +155,12 @@ test("Excel output is a single bare 'Statement of Account' sheet with a trailing
     "Withdrawals (INR)",
     "Deposits (INR)",
     "Balance (INR)",
-    "Type",
   ];
   headerRow.forEach((label, index) => {
     const column = String.fromCharCode("A".charCodeAt(0) + index);
     assert.equal(cell(`${column}1`), label);
   });
-  assert.equal(cell("K1"), null);
+  assert.equal(cell("J1"), null);
 
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, range: 1, defval: null });
   assert.equal(rows.length, 29); // Opening Balance + 27 transaction rows + 1 trailing GRAND TOTAL row

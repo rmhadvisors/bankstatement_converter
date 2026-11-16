@@ -63,6 +63,7 @@ Rules:
 - GSTIN exactly as printed (15 characters), upper case. Do not fix a GSTIN that looks wrong.
 - supplier = the business that issued the invoice (letterhead / "From"); buyer = billed to.
 - lineItems: one entry per printed row. taxableValue only if the invoice has a separate taxable-value column; otherwise put the row total in amount. A lump-sum row with no qty/rate has qty and rate null.
+- hsnSac: on handwritten bill-book rows with no column headings, the layout is "qty+item  HSN  rate  amount" (e.g. "68 sf Film   3920  55/-  3,740/-"). The 4 to 8 digit whole number between the item and the rate (3918, 3920, 6303, 6503, 9403...) is the HSN, never the qty or rate. Always fill it when such a number is written; null only if none is.
 - gstRate per line as a total percentage (CGST 9% + SGST 9% -> 18) only if printed on the line or clearly stated for all lines.
 - totals: copy the totals block. If the totals area is blank, leave those values null.
 - payment: fill from printed or handwritten payment notes ("Recd by Chq 0095 dt 04/08/26", "NEFT 69,077 recd 20/08") - amount, mode, reference, date as written; status "paid" only if the note says the full amount was received.

@@ -39,7 +39,7 @@ function parseDate(text) {
 }
 
 // OCR splits one printed number into pieces ("400000" "-" "00"); glue neighbours on one line.
-function mergeFragments(items) {
+function mergeFragments(items, { keepComplete = false } = {}) {
   const sorted = [...items].sort((a, b) => a.x - b.x);
   const out = [];
   for (const item of sorted) {
@@ -47,7 +47,8 @@ function mergeFragments(items) {
     // A separator, a 2-3 digit piece, or a 4-digit year right after a "-" or "/".
     // (OCR also reads the decimal point as the CJK marks 、 ， ：.)
     const fragment = /^[-._,:/、，：]+$/.test(item.text) || /^[-._,:、，：]?\d{2,3}$/.test(item.text) || (/^\d{4}$/.test(item.text) && /[-/]$/.test(last?.text ?? ""));
-    if (last && fragment && Math.abs(item.y - last.y) < 12 && item.x > last.x && item.x - last.x < 160 && /[\d\-._,/、，：]$/.test(last.text)) {
+    // keepComplete: a number that already ends in a 2-digit decimal part is complete ("37961.00" then "59" are two numbers).
+    if (last && fragment && !(keepComplete && /\.\d{2}$/.test(last.text)) && Math.abs(item.y - last.y) < 12 && item.x > last.x && item.x - last.x < 160 && /[\d\-._,/、，：]$/.test(last.text)) {
       last.text += item.text;
     } else {
       out.push({ ...item });

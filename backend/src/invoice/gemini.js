@@ -81,13 +81,15 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
     name: `gemini:${model}`,
     // signal: the per-file deadline from extract.js (covers retries); else one call's timeout.
     // responseSchema: another document type's Gemini schema (fuelRegister.js); default is the invoice one.
-    async complete({ system, messages, signal = AbortSignal.timeout(TIMEOUT_MS), responseSchema = GEMINI_SCHEMA }) {
+    // thinking: "low" etc. caps the model's reasoning (billed as output); dropped for good if the model rejects it.
+    async complete({ system, messages, signal = AbortSignal.timeout(TIMEOUT_MS), responseSchema = GEMINI_SCHEMA, thinking }) {
       const timedOut = () => geminiError("INVOICE_LLM_TIMEOUT", `Gemini did not finish within ${Math.round(TIMEOUT_MS / 1000)} s.`);
       if (!apiKey) throw geminiError("GEMINI_KEY_MISSING", "Gemini is not configured (GEMINI_API_KEY is not set).");
-      const body = JSON.stringify({
+      let thinkingLevel = thinking;
+      const makeBody = () => JSON.stringify({
         systemInstruction: { parts: [{ text: responseSchema === GEMINI_SCHEMA ? system + CONFIDENCE_NOTE : system }] },
         contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: toParts(m.content) })),
-        generationConfig: { responseMimeType: "application/json", responseSchema, maxOutputTokens: 32_768 },
+        generationConfig: { responseMimeType: "application/json", responseSchema, maxOutputTokens: 32_768, ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}) },
       });
       for (let attempt = 0; ; attempt++) {
         let response;
@@ -95,7 +97,7 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
           response = await fetchImpl(`${BASE_URL}/${encodeURIComponent(model)}:generateContent`, {
             method: "POST",
             headers: { "x-goog-api-key": apiKey, "content-type": "application/json" },
-            body,
+            body: makeBody(),
             signal,
           });
         } catch (error) {
@@ -109,6 +111,10 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
           const wait = Math.min(retryDelayMs(reply) || Number(response.headers.get("retry-after")) * 1000 || 2000 * 2 ** attempt, 60_000);
           await new Promise((resolve) => setTimeout(resolve, wait));
           if (signal.aborted) throw timedOut();
+          continue;
+        }
+        if (response.status === 400 && thinkingLevel && /thinking/i.test(reply?.error?.message ?? "")) {
+          thinkingLevel = undefined; // this model has no such setting: same call without it
           continue;
         }
         // status: lets callers tell a rate limit or spending cap (429) from other failures.
