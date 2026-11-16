@@ -1,17 +1,19 @@
 // AI reading of invoices: extractInvoice(file) -> InvoiceJSON. The model only transcribes; every
 // figure is re-checked in validate.js. The provider is swappable (tests use a mock); the default is
 // Claude over the Messages API with plain fetch. Nothing here logs invoice contents.
-import { writeFile, rm } from "node:fs/promises";
+import { mkdir, writeFile, rm } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { prepareInvoiceFile } from "./images.js";
 import { readFile } from "node:fs/promises";
 import { INVOICE_SCHEMA, validateInvoiceJson } from "./schema.js";
 import { sarvamProvider } from "./sarvam.js";
 import { geminiProvider, logUsage } from "./gemini.js";
 import { validateInvoice } from "./validate.js";
-import { applyReadingRules } from "./rules.js";
+import { applyReadingRules, hsnFromRawLine, validHsn } from "./rules.js";
+import { learnFrom, loadDictionary } from "./hsnDictionary.js";
 
 // Provider-independent clean-up (rules.js) of a schema-valid reading.
 const withRules = (invoice) => {
@@ -49,7 +51,7 @@ function skeleton(schema) {
   if (schema.oneOf) return `one of ${schema.oneOf.map((v) => JSON.stringify(v)).join(" | ")} or null`;
   if (Array.isArray(schema)) return [skeleton(schema[0])];
   if (schema["*"]) return { "<field path>": "medium | low" };
-  return Object.fromEntries(Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals", "crossCheck"].includes(key)).map(([key, value]) => [key, skeleton(value)]));
+  return Object.fromEntries(Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals", "crossCheck", "hsnNote"].includes(key)).map(([key, value]) => [key, skeleton(value)]));
 }
 
 const SYSTEM_PROMPT = `You transcribe Indian GST invoices, bills and receipts (printed or handwritten, often phone photos of carbon copies with stamps, signatures and notes) into JSON for an accountant. The accountant re-checks every number in code, so your only job is to copy exactly what is written.
@@ -63,6 +65,7 @@ Rules:
 - GSTIN exactly as printed (15 characters), upper case. Do not fix a GSTIN that looks wrong.
 - supplier = the business that issued the invoice (letterhead / "From"); buyer = billed to.
 - lineItems: one entry per printed row. taxableValue only if the invoice has a separate taxable-value column; otherwise put the row total in amount. A lump-sum row with no qty/rate has qty and rate null.
+- rawLine: for every line item, the exact text of that printed or handwritten line as read, left to right, with all its numbers (e.g. "68 sf Film 3920 55/- 3,740/-"). Copy only what is written.
 - hsnSac: on handwritten bill-book rows with no column headings, the layout is "qty+item  HSN  rate  amount" (e.g. "68 sf Film   3920  55/-  3,740/-"). The 4 to 8 digit whole number between the item and the rate (3918, 3920, 6303, 6503, 9403...) is the HSN, never the qty or rate. Always fill it when such a number is written; null only if none is.
 - gstRate per line as a total percentage (CGST 9% + SGST 9% -> 18) only if printed on the line or clearly stated for all lines.
 - totals: copy the totals block. If the totals area is blank, leave those values null.
@@ -294,6 +297,64 @@ async function readWithSarvam(file, { sarvam = sarvamProvider(), rotate = 0 }) {
   });
 }
 
+// ---- raw reading (debug) and the targeted HSN re-read ----
+// Every provider answer is saved (git-ignored tmp/invoice-debug) so a wrong or empty field can be traced to what the
+// model actually returned. INVOICE_DEBUG_RAW=off disables it; tests never write it.
+async function saveRawReading(fileName, value) {
+  if (process.env.INVOICE_DEBUG_RAW === "off" || process.env.NODE_TEST_CONTEXT) return;
+  try {
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "tmp", "invoice-debug");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, `${new Date().toISOString().replace(/[:.]/g, "-")}-${String(fileName).replace(/[^w.-]+/g, "_")}.json`), JSON.stringify({ file: fileName, reading: value }, null, 2));
+  } catch {
+    // a debug copy must never fail a reading
+  }
+}
+
+const has = (n) => typeof n === "number" && Number.isFinite(n);
+// Lines still without HSN after the rules, when the page probably does show one: another line has one, or a
+// number that looks like an HSN sits in the line's own text.
+function linesNeedingHsn(invoice) {
+  const lines = invoice.lineItems ?? [];
+  const anyHsn = lines.some((line) => line.hsnSac);
+  return lines.flatMap((line, index) => {
+    if (line.hsnSac || !line.description) return [];
+    const looksHsn = (String(line.rawLine ?? "").replace(/,/g, "").match(/\b\d{4,8}\b/g) ?? []).some((n) => validHsn(n) && ![line.qty, line.rate, line.amount].includes(Number(n)));
+    return anyHsn || looksHsn ? [index] : [];
+  });
+}
+
+const HSN_ASK_SCHEMA = { type: "object", properties: { lines: { type: "array", items: { type: "object", properties: { line: { type: "integer" }, rawLine: { type: "string", nullable: true }, hsn: { type: "string", nullable: true }, rate: { type: "number", nullable: true }, amount: { type: "number", nullable: true } }, required: ["line", "rawLine", "hsn", "rate", "amount"] } } }, required: ["lines"] };
+
+// ONE extra call per page. The answer is not trusted as is: its rawLine goes through the same arithmetic check as
+// rule a) (hsnFromRawLine). Mutates the invoice; -> number of lines filled.
+async function rereadHsn(provider, invoice, content, signal, usage) {
+  const wanted = linesNeedingHsn(invoice);
+  if (!wanted.length) return 0;
+  const list = wanted.map((i) => `Line ${i + 1}: ${invoice.lineItems[i].description}`).join("\n");
+  const ask = [...content, { type: "text", text: `For each of these lines of the invoice above, return what is WRITTEN on that line: rawLine (its exact text left to right, all numbers), hsn (the 4, 6 or 8 digit HSN/SAC written on the line, else null), rate and amount as written. Copy only; never calculate.\n${list}` }];
+  const answer = await provider.complete({ system: "You transcribe one line at a time from an invoice image. Return JSON only.", messages: [{ role: "user", content: ask }], signal, responseSchema: HSN_ASK_SCHEMA });
+  usage.calls++;
+  if (answer?.usage) (usage.inputTokens += answer.usage.inputTokens, (usage.outputTokens += answer.usage.outputTokens));
+  const parsed = parseJsonReply(typeof answer === "string" ? answer : answer.text);
+  let filled = 0;
+  for (const item of parsed.value?.lines ?? []) {
+    const line = invoice.lineItems[(item.line ?? 0) - 1];
+    if (!line || line.hsnSac || !wanted.includes(item.line - 1)) continue;
+    const probe = { ...line, rawLine: item.rawLine, rate: has(line.rate) ? line.rate : null, amount: has(line.amount) ? line.amount : has(item.amount) ? item.amount : null };
+    const hit = hsnFromRawLine(probe, invoice);
+    if (!hit) continue;
+    line.hsnSac = hit.hsn;
+    line.rawLine = item.rawLine;
+    if (!has(line.rate)) line.rate = hit.rate;
+    if (!has(line.qty) && has(line.amount) && line.rate > 0) line.qty = Math.round((line.amount / line.rate) * 100) / 100;
+    line.hsnNote = `HSN ${hit.hsn} found by reading line ${item.line} again, not in the first reading`;
+    invoice.derived.push(`Line ${line.sno ?? item.line}: ${line.hsnNote}.`);
+    filled++;
+  }
+  return filled;
+}
+
 async function readWithClaude(file, { provider = claudeProvider(), rotate = 0, queue = queued }) {
   let path = file.path;
   let cleanup = null;
@@ -321,7 +382,16 @@ async function readWithClaude(file, { provider = claudeProvider(), rotate = 0, q
         usage.calls++;
         const parsed = parseJsonReply(reply);
         const checked = parsed.error ? { ok: false, errors: [parsed.error] } : validateInvoiceJson(parsed.value);
-        if (checked.ok) return { invoice: withRules(checked.invoice), meta: { provider: provider.name?.split(":")[0] ?? "claude", usage, kind: prepared.kind } };
+        if (checked.ok) {
+          await saveRawReading(file.name, parsed.value);
+          const invoice = withRules(checked.invoice);
+          // Only the model providers can be asked again; one targeted call, only when HSN gaps remain.
+          let reread = 0;
+          if (provider.name && prepared.kind === "images" && process.env.INVOICE_HSN_REREAD !== "off") {
+            reread = await rereadHsn(provider, invoice, messages[0].content, signal, usage).catch(() => 0);
+          }
+          return { invoice, meta: { provider: provider.name?.split(":")[0] ?? "claude", usage, kind: prepared.kind, hsnReread: reread } };
+        }
         if (attempt === 1) throw extractError("INVOICE_LLM_BAD_JSON", `The AI reply did not match the invoice format twice (${checked.errors.slice(0, 3).join("; ")}).`);
         messages.push({ role: "assistant", content: reply });
         messages.push({ role: "user", content: `That JSON is not valid for the required shape: ${checked.errors.slice(0, 10).join("; ")}. Return the complete corrected JSON object only.` });

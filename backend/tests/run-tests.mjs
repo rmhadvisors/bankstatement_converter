@@ -4,6 +4,7 @@ try {
 } catch (e) {
   // Ignored if loadEnvFile doesn't exist or .env is missing
 }
+process.env.INVOICE_HSN_DICTIONARY = "off"; // tests never read or write the client's item dictionary
 delete process.env.INVOICE_PARTY_SIDE; // a deployment setting, not a test input
 
 await import("./bob-502.test.mjs");
@@ -58,3 +59,4 @@ await import("./bank-validation-guards.test.mjs");
 await import("./layout-guards-generic.test.mjs");
 await import("./bank-expected-values.test.mjs");
 await import("./bank-statement-layouts.test.mjs");
+await import("./invoice/hsn.test.mjs");

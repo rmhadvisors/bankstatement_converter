@@ -53,7 +53,7 @@ function toGeminiSchema(schema) {
   if (schema.oneOf) return { type: "string", enum: schema.oneOf, nullable: true };
   if (Array.isArray(schema)) return { type: "array", items: toGeminiSchema(schema[0]) };
   if (schema["*"]) return { type: "array", items: { type: "object", properties: { field: { type: "string" }, level: { type: "string", enum: ["medium", "low"] } }, required: ["field", "level"] } };
-  const entries = Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals", "crossCheck"].includes(key));
+  const entries = Object.entries(schema).filter(([key]) => !["derived", "useComputedTotals", "crossCheck", "hsnNote"].includes(key));
   return { type: "object", properties: Object.fromEntries(entries.map(([key, value]) => [key, toGeminiSchema(value)])), propertyOrdering: entries.map(([key]) => key) };
 }
 const GEMINI_SCHEMA = toGeminiSchema(INVOICE_SCHEMA);

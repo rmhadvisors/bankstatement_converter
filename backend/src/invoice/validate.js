@@ -4,6 +4,7 @@
 //   NEEDS REVIEW any arithmetic/GSTIN/date/duplicate problem
 //   OK           nothing above; "note" reasons (low confidence, payment difference) don't change it
 import { cleanGstin, gstinProblem, gstinStateCode } from "./gstin.js";
+import { validHsn } from "./rules.js";
 import { amountToIndianWords, wordsToAmount } from "./amountWords.js";
 
 const LINE_TOLERANCE = 1;
@@ -179,6 +180,11 @@ function validateInvoice(invoice, { financialYear = null, today = new Date() } =
     add("review", "totals.cgst", `CGST/SGST charged, but supplier state ${supplierState} differs from place of supply ${destinationState} (expected IGST)`);
   }
   if (intraState === null) intraState = charged(t.igst) ? false : charged(t.cgst) || charged(t.sgst) ? true : null;
+
+  // HSN/SAC shape: digits only, 4, 6 or 8 long, chapter 01-97. A written one is flagged, never changed.
+  lines.forEach((line, i) => {
+    if (line.hsnSac && !validHsn(line.hsnSac)) add("review", `lineItems[${i}].hsnSac`, `Line ${line.sno ?? i + 1}: HSN "${line.hsnSac}" is not a valid code (digits only, 4, 6 or 8 long, chapter 01-97); probably misread.`);
+  });
 
   // A line without a GST rate while other lines show one: rate unknown (not a separate rate).
   if (lines.some((line) => has(line.gstRate))) {

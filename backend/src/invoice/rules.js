@@ -3,6 +3,50 @@
 const has = (n) => typeof n === "number" && Number.isFinite(n);
 const round2 = (n) => Math.round((n + Math.sign(n) * Number.EPSILON) * 100) / 100;
 
+// HSN/SAC: digits only, 4, 6 or 8 long, chapter 01-97 (99 allowed for 6-digit SAC service codes).
+function validHsn(value) {
+  const text = String(value ?? "");
+  if (!/^(\d{4}|\d{6}|\d{8})$/.test(text)) return false;
+  const chapter = Number(text.slice(0, 2));
+  return (chapter >= 1 && chapter <= 97) || (chapter === 99 && text.length === 6);
+}
+
+// Item keywords for matching the same item across lines: description without numbers, units and filler words.
+const ITEM_FILLER = new Set(["sf", "sft", "sqft", "sq", "ft", "mtr", "mtrs", "pc", "pcs", "nos", "no", "tin", "tins", "litre", "lit", "ltr", "ltrs", "per", "piece", "soft", "of", "the", "and", "p"]);
+function itemKey(description) {
+  const words = String(description ?? "").toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !ITEM_FILLER.has(w));
+  return words.join(" ");
+}
+
+// The numbers of a raw line in reading order: "68/SF flim 3920 55/- 3,740/-" -> [68, 3920, 55, 3740].
+const rawNumbers = (text) => [...String(text ?? "").matchAll(/\d[\d,]*(?:\.\d+)?/g)].map((m) => ({ text: m[0].replace(/,/g, ""), value: Number(m[0].replace(/,/g, "")) })).filter((n) => Number.isFinite(n.value));
+const near = (a, b) => Math.abs(a - b) <= 1.0001;
+
+// HSN (and a missing rate) from the line's own written text. A 4, 6 or 8 digit whole number is the HSN only if the
+// remaining numbers still satisfy qty x rate = amount (tolerance 1). Exactly one such number, or nothing is taken.
+// -> { hsn, rate } | null
+function hsnFromRawLine(line, invoice) {
+  const numbers = rawNumbers(line.rawLine);
+  if (numbers.length < 3) return null;
+  const invoiceDigits = String(invoice.invoiceNo ?? "").replace(/\D/g, "");
+  const found = [];
+  numbers.forEach((candidate, index) => {
+    if (!validHsn(candidate.text) || index === numbers.length - 1) return;
+    const year = candidate.text.length === 4 && Number(candidate.text) >= 1990 && Number(candidate.text) <= 2100;
+    if (year || [line.qty, line.rate, line.amount, line.taxableValue].some((v) => has(v) && v === candidate.value) || candidate.text === invoiceDigits) return;
+    const rest = numbers.filter((_, i) => i !== index);
+    const amount = rest[rest.length - 1];
+    if (has(line.amount) && !near(amount.value, line.amount)) return;
+    for (let r = 1; r < rest.length - 1; r += 1) {
+      if (index < numbers.indexOf(rest[r]) && rest.slice(0, r).some((qty) => near(qty.value * rest[r].value, amount.value))) {
+        found.push({ hsn: candidate.text, rate: rest[r].value });
+        break;
+      }
+    }
+  });
+  return found.length === 1 ? found[0] : null;
+}
+
 // "total area 337 sq ft", "966.45 sqft", "15 SQFT", "100 KGS"
 const UNIT_SOURCE = String.raw`sq\.?\s*f(?:ee)?t|sq\.?\s*ft|sqft|sft|sq\.?\s*m(?:tr)?s?|sqm|r\.?\s*ft|rft|running\s*ft|kgs?|nos?|pcs|mtrs?|ltrs?|bags?|cft|brass`;
 const QTY_IN_TEXT = new RegExp(String.raw`(\d+(?:\.\d+)?)\s*(${UNIT_SOURCE})\b`, "gi");
@@ -55,7 +99,8 @@ function repeatsInvoice(note, invoice) {
   return false;
 }
 
-function applyReadingRules(input) {
+// options.dictionary: Map(item keyword -> HSN) from hsnDictionary.js.
+function applyReadingRules(input, { dictionary = new Map() } = {}) {
   const invoice = structuredClone(input);
   const derived = []; // what was filled in by code, for the review notes
   invoice.confidence ??= {};
@@ -74,6 +119,30 @@ function applyReadingRules(input) {
     line.hsnSac = String(line.qty);
     line.qty = null;
     derived.push(`Line ${line.sno ?? i + 1}: ${line.hsnSac} is 4+ digits and does not match rate x amount, so it is the HSN, not the quantity.`);
+  });
+
+  // HSN still empty. a) from the line's own written text; b) the same item elsewhere on this invoice; c) the item
+  // dictionary. Only a) is a direct reading; b) and c) are flagged (line.hsnNote) because the bill does not say it.
+  lines.forEach((line, i) => {
+    if (line.hsnSac) return;
+    const hit = hsnFromRawLine(line, invoice);
+    if (!hit) return;
+    line.hsnSac = hit.hsn;
+    derived.push(`Line ${line.sno ?? i + 1}: HSN ${hit.hsn} read from the line's written text.`);
+    if (!has(line.rate)) (line.rate = hit.rate, derived.push(`Line ${line.sno ?? i + 1}: rate ${hit.rate} read from the line's written text.`));
+  });
+  lines.forEach((line, i) => {
+    if (line.hsnSac) return;
+    const key = itemKey(line.description);
+    if (!key) return;
+    const same = lines.find((other) => other !== line && other.hsnSac && itemKey(other.description) === key);
+    const fromDictionary = same ? null : dictionary.get(key);
+    const hsn = same?.hsnSac ?? fromDictionary;
+    if (!hsn) return;
+    const where = same ? `line ${same.sno ?? lines.indexOf(same) + 1}` : "the item dictionary";
+    line.hsnSac = hsn;
+    line.hsnNote = `HSN ${hsn} taken from ${where}, not written on the bill`;
+    derived.push(`Line ${line.sno ?? i + 1}: ${line.hsnNote}.`);
   });
 
   // Line qty/unit written inside the description (no qty column on the form).
@@ -154,4 +223,4 @@ function applyReadingRules(input) {
   return { invoice, derived };
 }
 
-export { applyReadingRules, normalizeUnit };
+export { applyReadingRules, hsnFromRawLine, itemKey, normalizeUnit, validHsn };

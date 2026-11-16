@@ -15,7 +15,7 @@ const INVOICE_SCHEMA = {
   reverseCharge: "boolean",
   lineItems: [
     {
-      sno: "string|number", description: str, hsnSac: str, qty: num, unit: str, rate: num, discount: num,
+      sno: "string|number", description: str, rawLine: str, hsnSac: str, qty: num, unit: str, rate: num, discount: num,
       taxableValue: num, gstRate: num, cgst: num, sgst: num, igst: num, amount: num,
     },
   ],

@@ -2,6 +2,7 @@
 // GST Entries rows are built per GST rate from the lines; other amounts are written values only.
 import ExcelJS from "exceljs";
 import { parseDmy } from "./validate.js";
+import { validHsn } from "./rules.js";
 
 const TEAL = "FF2F5F5F";
 const YELLOW = "FFFFF2CC"; // light yellow, as in the client's sample workbook
@@ -354,6 +355,7 @@ async function buildInvoiceSheetBuffer(entries, { failed = [] } = {}) {
   const sorted = [...entries].sort((a, b) => (parseDmy(a.invoice.invoiceDate)?.getTime() ?? 0) - (parseDmy(b.invoice.invoiceDate)?.getTime() ?? 0));
   const sheet = addSheet(workbook, "GST Entries", ["DATE", "PARTY NAME", "GSTIN", "INVOICE NO", "HSN CODE", "QUANTITY(NOS/SQFT/MTR)", "RATE", "TAXABLE AMOUNT", "IGST", "CGST", "SGST", "GST RATE", "STOCK (IF APPLICABLE)"], [12, 30, 19, 15, 11, 14, 11, 16, 11, 12, 12, 10, 40]);
   const yellow = new Set();
+  const hsnYellow = [];
   const gstRateCell = (r, values) => {
     const [taxable, igst, cgst, sgst] = values;
     return { formula: `IF(H${r}=0,"",SUM(I${r}:K${r})/H${r})`, result: has(taxable) && taxable !== 0 ? round2(((igst ?? 0) + (cgst ?? 0) + (sgst ?? 0)) / taxable) : "" };
@@ -369,7 +371,7 @@ async function buildInvoiceSheetBuffer(entries, { failed = [] } = {}) {
       const rate = rateOf(line);
       const tax = rate === null || taxable === null ? null : round2((taxable * rate) / (intra === false ? 100 : 200));
       const split = (interstate) => (tax === null ? null : interstate === (intra === false) ? tax : 0);
-      return { item: line.description ?? "", hsn: line.hsnSac ?? null, qty: line.qty ?? null, rate: line.rate ?? null, taxable, igst: split(true), cgst: split(false), sgst: split(false) };
+      return { item: line.description ?? "", hsn: line.hsnSac ?? null, hsnNote: line.hsnNote || (line.hsnSac && !validHsn(line.hsnSac) ? `HSN ${line.hsnSac} is not a valid code` : null), qty: line.qty ?? null, rate: line.rate ?? null, taxable, igst: split(true), cgst: split(false), sgst: split(false) };
     });
     if (!rows.length) rows.push({ hsn: null, qty: null, rate: null, taxable: result.computed.taxable, igst: has(t.igst) ? t.igst : null, cgst: has(t.cgst) ? t.cgst : null, sgst: has(t.sgst) ? t.sgst : null });
     else {
@@ -384,12 +386,19 @@ async function buildInvoiceSheetBuffer(entries, { failed = [] } = {}) {
     }
     for (const row of rows) {
       const added = sheet.addRow([parseDmy(invoice.invoiceDate), entry.partyName, (entry.salesMode ? invoice.buyer : invoice.supplier)?.gstin ?? "", invoice.invoiceNo ?? "", row.hsn, row.qty, row.rate, row.taxable, row.igst, row.cgst, row.sgst, null, row.item ?? ""]);
+      // An HSN not written on the bill (or not a valid code) is a yellow cell with the reason as a cell note.
+      if (row.hsnNote) {
+        added.getCell(5).note = row.hsnNote;
+        hsnYellow.push(added.number);
+      }
       added.getCell(12).value = gstRateCell(added.number, [row.taxable, row.igst, row.cgst, row.sgst]);
       if (result.status !== "OK") yellow.add(added.number);
     }
   }
   if (sheet.rowCount > 1) totalRow(sheet, "TOTAL", 4, [8, 9, 10, 11], 2);
   finish(sheet, { moneyColumns: [7, 8, 9, 10, 11], dateColumns: [1], percentColumns: [12], highlight: yellow });
+
+  for (const r of hsnYellow) sheet.getRow(r).getCell(5).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF00" } };
 
   if (failed.length) {
     const errors = addSheet(workbook, "Errors", ["SOURCE", "WHY IT WAS NOT CONVERTED"], [34, 90]);
