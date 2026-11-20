@@ -2,6 +2,9 @@
 // the Claude provider, so extract.js runs the same prompt, schema check + retry, rules and checks.
 // Gemini's structured output (responseSchema) is generated from INVOICE_SCHEMA. Nothing here logs
 // invoice contents. API: https://ai.google.dev/api/generate-content
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { INVOICE_SCHEMA } from "./schema.js";
 
 const DEFAULT_MODEL = "gemini-3.8-flash";
@@ -12,6 +15,51 @@ const MAX_HTTP_RETRIES = 3;
 const retryDelayMs = (reply) => (parseFloat(reply?.error?.details?.find((d) => d.retryDelay)?.retryDelay) || 0) * 1000;
 
 const geminiError = (code, message) => Object.assign(new Error(message), { code });
+
+// ---- Vertex AI (Google login, no API key) ----
+// GOOGLE_GENAI_USE_VERTEXAI=True + GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION. The token comes from the Cloud Run
+// metadata server on the live server, or from `gcloud auth application-default login` on a laptop (refreshed here with
+// plain fetch, so no Google library is needed). Never an API key or a JSON key file.
+const vertexConfig = (env = process.env) =>
+  String(env.GOOGLE_GENAI_USE_VERTEXAI).toLowerCase() === "true" && env.GOOGLE_CLOUD_PROJECT && env.GOOGLE_CLOUD_LOCATION ? { project: env.GOOGLE_CLOUD_PROJECT, location: env.GOOGLE_CLOUD_LOCATION } : null;
+// Gemini can be used when Vertex is set up or an API key is present.
+const geminiConfigured = (env = process.env) => Boolean(vertexConfig(env) || env.GEMINI_API_KEY);
+
+const adcPath = () => join(process.platform === "win32" ? process.env.APPDATA ?? homedir() : join(homedir(), ".config"), "gcloud", "application_default_credentials.json");
+let token = { value: null, expires: 0 };
+async function vertexToken() {
+  if (token.value && Date.now() < token.expires) return token.value;
+  let answer;
+  try {
+    if (process.env.K_SERVICE || process.env.GAE_ENV) {
+      answer = await (await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", { headers: { "Metadata-Flavor": "Google" } })).json();
+    } else {
+      const adc = JSON.parse(await readFile(adcPath(), "utf8"));
+      const body = new URLSearchParams({ client_id: adc.client_id, client_secret: adc.client_secret, refresh_token: adc.refresh_token, grant_type: "refresh_token" });
+      answer = await (await fetch("https://oauth2.googleapis.com/token", { method: "POST", body })).json();
+    }
+  } catch {
+    throw geminiError("GEMINI_AUTH_FAILED", "Could not get a Google login token. Run: gcloud auth application-default login");
+  }
+  if (!answer?.access_token) throw geminiError("GEMINI_AUTH_FAILED", "Google login failed. Run: gcloud auth application-default login (with the account that has Vertex AI access).");
+  token = { value: answer.access_token, expires: Date.now() + Math.max(60, (answer.expires_in ?? 3600) - 300) * 1000 };
+  return token.value;
+}
+
+// -> { url, headers } for one generateContent call.
+async function endpoint(model, apiKey) {
+  const vertex = vertexConfig();
+  if (!vertex) {
+    if (!apiKey) throw geminiError("GEMINI_KEY_MISSING", "Gemini is not configured (set the Vertex AI settings, or GEMINI_API_KEY).");
+    return { url: `${BASE_URL}/${encodeURIComponent(model)}:generateContent`, headers: { "x-goog-api-key": apiKey, "content-type": "application/json" } };
+  }
+  const { project, location } = vertex;
+  const host = location === "global" ? "aiplatform.googleapis.com" : `${location}-aiplatform.googleapis.com`;
+  return {
+    url: `https://${host}/v1/projects/${project}/locations/${location}/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
+    headers: { authorization: `Bearer ${await vertexToken()}`, "x-goog-user-project": project, "content-type": "application/json" },
+  };
+}
 
 // ---- usage and cost ----
 // Paid-tier USD per 1M tokens (input incl. images, output incl. thinking), ai.google.dev pricing page,
@@ -84,7 +132,6 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
     // thinking: "low" etc. caps the model's reasoning (billed as output); dropped for good if the model rejects it.
     async complete({ system, messages, signal = AbortSignal.timeout(TIMEOUT_MS), responseSchema = GEMINI_SCHEMA, thinking }) {
       const timedOut = () => geminiError("INVOICE_LLM_TIMEOUT", `Gemini did not finish within ${Math.round(TIMEOUT_MS / 1000)} s.`);
-      if (!apiKey) throw geminiError("GEMINI_KEY_MISSING", "Gemini is not configured (GEMINI_API_KEY is not set).");
       let thinkingLevel = thinking;
       const makeBody = () => JSON.stringify({
         systemInstruction: { parts: [{ text: responseSchema === GEMINI_SCHEMA ? system + CONFIDENCE_NOTE : system }] },
@@ -93,10 +140,11 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
       });
       for (let attempt = 0; ; attempt++) {
         let response;
+        const { url, headers } = await endpoint(model, apiKey); // auth / config errors surface as themselves, not as "unreachable"
         try {
-          response = await fetchImpl(`${BASE_URL}/${encodeURIComponent(model)}:generateContent`, {
+          response = await fetchImpl(url, {
             method: "POST",
-            headers: { "x-goog-api-key": apiKey, "content-type": "application/json" },
+            headers,
             body: makeBody(),
             signal,
           });
@@ -134,4 +182,4 @@ function geminiProvider({ apiKey = process.env.GEMINI_API_KEY, model = process.e
   };
 }
 
-export { GEMINI_SCHEMA, PRICES, estimateCostInr, geminiProvider, logUsage, toGeminiSchema, usageLine };
+export { GEMINI_SCHEMA, geminiConfigured, vertexConfig, PRICES, estimateCostInr, geminiProvider, logUsage, toGeminiSchema, usageLine };

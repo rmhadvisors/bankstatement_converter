@@ -10,7 +10,7 @@ import { prepareInvoiceFile } from "./images.js";
 import { readFile } from "node:fs/promises";
 import { INVOICE_SCHEMA, validateInvoiceJson } from "./schema.js";
 import { sarvamProvider } from "./sarvam.js";
-import { geminiProvider, logUsage } from "./gemini.js";
+import { geminiConfigured, geminiProvider, logUsage, vertexConfig } from "./gemini.js";
 import { validateInvoice } from "./validate.js";
 import { applyReadingRules, hsnFromRawLine, validHsn } from "./rules.js";
 import { learnFrom, loadDictionary } from "./hsnDictionary.js";
@@ -187,7 +187,7 @@ function chosenProvider() {
 }
 
 // Data terms confirmed by the user: Gemini key is billing-enabled; Sarvam DPA + zero retention.
-const geminiConfirmed = () => process.env.GEMINI_BILLING_CONFIRMED === "true";
+const geminiConfirmed = () => Boolean(vertexConfig()) || process.env.GEMINI_BILLING_CONFIRMED === "true"; // Vertex AI is billed to the project
 const sarvamConfirmed = () => process.env.SARVAM_DPA_CONFIRMED === "true";
 
 // "Double-check handwritten bills": Gemini + Sarvam on every photo/scan. Only with both confirmed.
@@ -223,7 +223,7 @@ function providerInfo() {
 
 function providerConfigured(name = chosenProvider()) {
   if (name === "claude") return Boolean(process.env.INVOICE_LLM_API_KEY);
-  if (name === "gemini") return Boolean(process.env.GEMINI_API_KEY);
+  if (name === "gemini") return geminiConfigured();
   if (name === "sarvam") return Boolean(process.env.SARVAM_API_KEY);
   return Boolean(process.env.SARVAM_API_KEY && process.env.INVOICE_LLM_API_KEY);
 }

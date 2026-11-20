@@ -4,7 +4,7 @@
 // debits = closing, printed totals). Only pages that fail are re-read, once; a result that still does not
 // reconcile stays needs_review. No number is ever changed to make a check pass.
 import { readFile } from "node:fs/promises";
-import { estimateCostInr, geminiProvider, usageLine } from "../invoice/gemini.js";
+import { estimateCostInr, geminiConfigured, geminiProvider, usageLine, vertexConfig } from "../invoice/gemini.js";
 import { renderPdfPages } from "../invoice/images.js";
 import { roundMoney } from "./parsers/common.js";
 import { buildValidationReport, reviewStatus } from "./validation.js";
@@ -16,7 +16,7 @@ const PAGE_LONG_SIDE = 3000;
 const TOLERANCE = 0.05;
 
 const aiFallbackEnabled = (env = process.env) =>
-  env.BANK_AI_FALLBACK === "true" && env.GEMINI_BILLING_CONFIRMED === "true" && Boolean(env.GEMINI_API_KEY);
+  env.BANK_AI_FALLBACK === "true" && (Boolean(vertexConfig(env)) || env.GEMINI_BILLING_CONFIRMED === "true") && geminiConfigured(env);
 const aiMaxPages = (env = process.env) => Number(env.BANK_AI_MAX_PAGES) || 60;
 
 const num = { type: "number", nullable: true };
