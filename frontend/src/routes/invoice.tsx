@@ -7,7 +7,6 @@ import { ConverterTabs } from "@/components/converter-tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   convertInvoices,
-  ENTRY_TYPES,
   exportInvoices,
   getInvoiceConfig,
   validateInvoices,
@@ -18,7 +17,7 @@ import {
   type Party,
   type ProviderInfo,
 } from "@/lib/invoice-api";
-import { loadParties, readDoubleCheck, readIncludePartySheet, saveParty, type PartyStore } from "@/lib/invoice-parties";
+import { loadParties, readDoubleCheck, readIncludePartySheet, type PartyStore } from "@/lib/invoice-parties";
 import { InvoiceProviderNote } from "@/components/invoice-provider-note";
 
 export const Route = createFileRoute("/invoice")({
@@ -221,27 +220,6 @@ function InvoicePage() {
     validateTimer.current = setTimeout(() => revalidate(itemsRef.current), 400);
   }
 
-  async function chooseEntryType(item: Item, entryType: EntryType) {
-    const name = item.evaluated?.party.name || String(item.invoice?.supplier?.name ?? "").toUpperCase();
-    // The choice is also kept on the invoice itself, so it counts (and is exported) even when there is no party name to save.
-    const withChoice = itemsRef.current.map((x) => (x.id === item.id ? { ...x, entryType } : x));
-    itemsRef.current = withChoice;
-    setItems(withChoice);
-    if (!user || !name) {
-      toast.warning("No party name is written on this invoice, so the choice applies to this invoice only.");
-      await revalidate(withChoice);
-      return;
-    }
-    try {
-      const next = await saveParty(user.id, partyStore, parties, { name, gstin: item.invoice?.supplier?.gstin ?? null, entryType });
-      setParties(next);
-      toast.success(`${name} saved as ${entryType}`);
-      await revalidate(withChoice, next);
-    } catch (error) {
-      toast.error(`Could not save the party: ${error instanceof Error ? error.message : error}`);
-    }
-  }
-
   async function exportAll() {
     const ready = items.filter((item) => item.invoice);
     const failed = items.filter((item) => !item.invoice && item.state === "error").map((item) => ({ sourceFile: item.name, message: item.error ?? "Could not be read." }));
@@ -370,7 +348,6 @@ function InvoicePage() {
             item={selected}
             onEdit={(path, value) => edit(selected.id, path, value)}
             onRotate={() => setItems((c) => c.map((x) => (x.id === selected.id ? { ...x, rotation: (x.rotation + 90) % 360 } : x)))}
-            onChooseEntryType={(type) => chooseEntryType(selected, type)}
           />
         )}
       </main>
@@ -382,12 +359,10 @@ function ReviewPanel({
   item,
   onEdit,
   onRotate,
-  onChooseEntryType,
 }: {
   item: Item;
   onEdit: (path: string, value: unknown) => void;
   onRotate: () => void;
-  onChooseEntryType: (type: EntryType) => void;
 }) {
   const invoice = item.invoice!;
   const evaluated = item.evaluated;
@@ -468,27 +443,6 @@ function ReviewPanel({
       <div className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           {statusBadge(evaluated?.status)}
-          {evaluated && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Tally entry type:</span>
-              {evaluated.party.source === "guess" ? (
-                <select
-                  value={evaluated.party.entryType}
-                  onChange={(e) => onChooseEntryType(e.target.value as EntryType)}
-                  className="rounded-md border bg-white px-2 py-1 text-sm"
-                  aria-label="Tally entry type for this party (auto-suggested)"
-                >
-                  {ENTRY_TYPES.map((type) => (
-                    <option key={type}>{type}</option>
-                  ))}
-                </select>
-              ) : (
-                <span className="font-semibold">
-                  {evaluated.party.entryType} <span className="font-normal text-muted-foreground">({evaluated.party.name})</span>
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {evaluated && evaluated.reasons.length > 0 && (
