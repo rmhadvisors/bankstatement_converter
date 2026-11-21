@@ -10,6 +10,7 @@ import process from "node:process";
 // first time mid-request bumps its Windows last-access time, which the watcher reports as a change
 // and restarts the server -- dropping every in-memory job (the client then polls into a 404).
 import { convertPdfToExcelBuffer } from "./parsers/converter.js";
+import { imagesToPdf } from "./invoice/images.js";
 import { convertCreditCardToExcelBuffer } from "./creditcard/ccConverter.js";
 import {
   handleInvoiceConfig,
@@ -261,7 +262,7 @@ async function runCreditCardJob(jobId, tempFilePath, fileName, options) {
 
 async function handleConvertSubmit(request) {
   const form = await request.formData();
-  const file = form.get("statement") || form.get("file");
+  let file = form.get("statement") || form.get("file");
   const passwordField = form.get("password");
   const scannedField = form.get("scanned");
   const password = typeof passwordField === "string" ? passwordField : "";
@@ -276,6 +277,20 @@ async function handleConvertSubmit(request) {
 
   if (!(file instanceof File)) {
     return Response.json({ code: "PDF_REQUIRED", message: "Upload a file to convert." }, { status: 400 });
+  }
+
+  // Several photos sent together are the pages of ONE statement (upload order): merged into one PDF.
+  const parts = form.getAll("statement").filter((part) => part instanceof File);
+  if (parts.length > 1) {
+    if (!scanned) {
+      return Response.json({ code: "FILE_TYPE_NOT_SUPPORTED", message: "Combining several files works for scanned photos only." }, { status: 400 });
+    }
+    try {
+      const merged = await imagesToPdf(await Promise.all(parts.map(async (part) => Buffer.from(await part.arrayBuffer()))));
+      file = new File([merged], `${parts[0].name.replace(/\.[^.]+$/, "")}.pdf`, { type: "application/pdf" });
+    } catch (error) {
+      return Response.json({ code: error.code || "FILE_TYPE_NOT_SUPPORTED", message: error.message }, { status: 400 });
+    }
   }
 
   if (file.size > MAX_UPLOAD_BYTES) {

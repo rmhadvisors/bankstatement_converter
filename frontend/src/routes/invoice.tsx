@@ -37,6 +37,8 @@ const MAX_BYTES = 20 * 1024 * 1024;
 type Item = {
   id: string;
   file: File;
+  name: string; // file name, or "<file> (page n)" for one bill of a split bill-book PDF
+  page?: number;
   previewUrl: string;
   rotation: number;
   state: JobFile["state"] | "pending";
@@ -90,7 +92,7 @@ function InvoicePage() {
   const [provider, setProvider] = useState<ProviderInfo | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
   const [partyStore, setPartyStore] = useState<PartyStore>("browser");
-  const [financialYear, setFinancialYear] = useState(currentFinancialYear());
+  const financialYear = ""; // no FY picker: the "date outside FY" check is off
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [drag, setDrag] = useState(false);
@@ -121,7 +123,7 @@ function InvoicePage() {
       if (!ready.length) return;
       try {
         const results = await validateInvoices(
-          ready.map((item) => ({ invoice: item.invoice!, sourceFile: item.file.name, entryType: item.entryType })),
+          ready.map((item) => ({ invoice: item.invoice!, sourceFile: item.name, entryType: item.entryType })),
           partyList,
           financialYear,
         );
@@ -145,7 +147,7 @@ function InvoicePage() {
     });
     setItems((current) => [
       ...current,
-      ...picked.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file), rotation: 0, state: "pending" as const })),
+      ...picked.map((file) => ({ id: crypto.randomUUID(), file, name: file.name, previewUrl: URL.createObjectURL(file), rotation: 0, state: "pending" as const })),
     ]);
   }
 
@@ -169,16 +171,35 @@ function InvoicePage() {
         },
         readDoubleCheck(),
       );
-      const next = itemsRef.current.map((item) => {
-        const index = pending.findIndex((p) => p.id === item.id);
-        return index >= 0 && files[index].invoice ? { ...item, invoice: files[index].invoice, state: "done" as const } : item;
+      // The server cuts a PDF of many bills into one entry per page ("<name> (page n)"): one review item each.
+      let cursor = 0;
+      const mine = new Map<string, JobFile[]>();
+      for (const p of pending) {
+        const group = [files[cursor++]];
+        if (group[0].name !== p.name) while (cursor < files.length && files[cursor].name.startsWith(`${p.name} (page `)) group.push(files[cursor++]);
+        mine.set(p.id, group);
+      }
+      const next = itemsRef.current.flatMap((item): Item[] => {
+        const group = mine.get(item.id);
+        if (!group) return [item];
+        if (group.length === 1 && group[0].name === item.name) return [group[0].invoice ? { ...item, invoice: group[0].invoice, state: "done" as const } : item];
+        return group.map((f, i) => ({
+          ...item,
+          id: crypto.randomUUID(),
+          name: f.name,
+          page: i + 1,
+          previewUrl: `${item.previewUrl.split("#")[0]}#page=${i + 1}`,
+          state: f.invoice ? ("done" as const) : ("error" as const),
+          error: f.error?.message,
+          invoice: f.invoice,
+        }));
       });
       setItems(next);
       await revalidate(next);
       const failed = files.filter((file) => file.state === "error").length;
       if (failed) toast.warning(`${failed} file(s) could not be read.`);
-      const firstRead = pending.find((p, i) => files[i].invoice);
-      setSelectedId((current) => current ?? firstRead?.id ?? null);
+      const firstRead = next.find((item) => item.invoice);
+      setSelectedId((current) => (current && next.some((item) => item.id === current) ? current : (firstRead?.id ?? null)));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed");
     } finally {
@@ -202,12 +223,20 @@ function InvoicePage() {
 
   async function chooseEntryType(item: Item, entryType: EntryType) {
     const name = item.evaluated?.party.name || String(item.invoice?.supplier?.name ?? "").toUpperCase();
-    if (!user || !name) return;
+    // The choice is also kept on the invoice itself, so it counts (and is exported) even when there is no party name to save.
+    const withChoice = itemsRef.current.map((x) => (x.id === item.id ? { ...x, entryType } : x));
+    itemsRef.current = withChoice;
+    setItems(withChoice);
+    if (!user || !name) {
+      toast.warning("No party name is written on this invoice, so the choice applies to this invoice only.");
+      await revalidate(withChoice);
+      return;
+    }
     try {
       const next = await saveParty(user.id, partyStore, parties, { name, gstin: item.invoice?.supplier?.gstin ?? null, entryType });
       setParties(next);
       toast.success(`${name} saved as ${entryType}`);
-      await revalidate(items, next);
+      await revalidate(withChoice, next);
     } catch (error) {
       toast.error(`Could not save the party: ${error instanceof Error ? error.message : error}`);
     }
@@ -215,15 +244,10 @@ function InvoicePage() {
 
   async function exportAll() {
     const ready = items.filter((item) => item.invoice);
-    const unknown = ready.filter((item) => item.evaluated?.party.source === "guess");
-    if (unknown.length) {
-      toast.error(`Choose the Tally entry type for ${unknown.map((u) => u.evaluated!.party.name).join(", ")} first.`);
-      setSelectedId(unknown[0].id);
-      return;
-    }
+    const failed = items.filter((item) => !item.invoice && item.state === "error").map((item) => ({ sourceFile: item.name, message: item.error ?? "Could not be read." }));
     setExporting(true);
     try {
-      await exportInvoices(ready.map((item) => ({ invoice: item.invoice!, sourceFile: item.file.name })), parties, financialYear, readIncludePartySheet());
+      await exportInvoices(ready.map((item) => ({ invoice: item.invoice!, sourceFile: item.name, entryType: item.entryType })), parties, financialYear, readIncludePartySheet(), failed);
       const flagged = ready.filter((item) => item.evaluated?.status !== "OK").length;
       toast.success(flagged ? `Exported. ${flagged} invoice(s) are marked for review in the Excel file.` : "Exported.");
     } catch (error) {
@@ -234,7 +258,7 @@ function InvoicePage() {
   }
 
   const selected = items.find((item) => item.id === selectedId) ?? null;
-  const readCount = items.filter((item) => item.invoice).length;
+  const readCount = items.filter((item) => item.invoice || item.state === "error").length;
 
   if (loading || !user) {
     return (
@@ -274,16 +298,6 @@ function InvoicePage() {
                 <InvoiceProviderNote provider={provider} />
               </div>
             </div>
-            <label className="text-sm">
-              <span className="mr-2 font-medium">Financial year</span>
-              <select value={financialYear} onChange={(e) => setFinancialYear(e.target.value)} className="rounded-md border bg-white px-2 py-1">
-                {[0, 1, 2].map((back) => {
-                  const start = Number(currentFinancialYear().slice(0, 4)) - back;
-                  const fy = `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
-                  return <option key={fy}>{fy}</option>;
-                })}
-              </select>
-            </label>
           </div>
 
           <div
@@ -306,7 +320,7 @@ function InvoicePage() {
                 <li key={item.id} className={`flex items-center gap-3 p-3 ${item.id === selectedId ? "bg-primary/5" : ""}`}>
                   <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => item.invoice && setSelectedId(item.id)} disabled={!item.invoice}>
-                    <div className="truncate text-sm font-medium">{item.file.name}</div>
+                    <div className="truncate text-sm font-medium">{item.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {item.state === "pending" && "Ready to read"}
                       {item.state === "queued" && "Queued"}
@@ -320,8 +334,8 @@ function InvoicePage() {
                   {statusBadge(item.evaluated?.status)}
                   <button
                     type="button"
-                    aria-label={`Remove ${item.file.name}`}
-                    onClick={() => (URL.revokeObjectURL(item.previewUrl), setItems((c) => c.filter((x) => x.id !== item.id)), selectedId === item.id && setSelectedId(null))}
+                    aria-label={`Remove ${item.name}`}
+                    onClick={() => (!item.page && URL.revokeObjectURL(item.previewUrl), setItems((c) => c.filter((x) => x.id !== item.id)), selectedId === item.id && setSelectedId(null))}
                     className="rounded p-1 text-muted-foreground hover:bg-muted"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -393,8 +407,8 @@ function ReviewPanel({
     if (confidence[path] === "medium") return "border-yellow-300 bg-yellow-50";
     return "border-input bg-white";
   };
-  const isPdf = /\.pdf$/i.test(item.file.name) || item.file.type === "application/pdf";
-  const isHeic = /\.hei[cf]$/i.test(item.file.name);
+  const isPdf = /\.pdf$/i.test(item.name) || item.file.type === "application/pdf";
+  const isHeic = /\.hei[cf]$/i.test(item.name);
 
   const Field = ({ path, label, numeric = false }: { path: string; label: string; numeric?: boolean }) => {
     const value = getPath(invoice, path);
@@ -433,7 +447,7 @@ function ReviewPanel({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <div className="rounded-2xl border bg-card p-4 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
-          <span className="truncate text-sm font-medium">{item.file.name}</span>
+          <span className="truncate text-sm font-medium">{item.name}</span>
           {!isPdf && !isHeic && (
             <button type="button" onClick={onRotate} className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
               <RotateCw className="h-3.5 w-3.5" /> Rotate
@@ -442,11 +456,11 @@ function ReviewPanel({
         </div>
         <div className="grid min-h-[480px] place-items-center overflow-auto rounded-lg bg-slate-100">
           {isPdf ? (
-            <iframe title={item.file.name} src={item.previewUrl} className="h-[70vh] w-full rounded-lg" />
+            <iframe title={item.name} src={item.previewUrl} className="h-[70vh] w-full rounded-lg" />
           ) : isHeic ? (
             <p className="p-6 text-center text-sm text-muted-foreground">HEIC photos can't be previewed in the browser. The converter reads them.</p>
           ) : (
-            <img src={item.previewUrl} alt={`Invoice ${item.file.name}`} style={{ transform: `rotate(${item.rotation}deg)` }} className="max-h-[70vh] max-w-full object-contain transition-transform" />
+            <img src={item.previewUrl} alt={`Invoice ${item.name}`} style={{ transform: `rotate(${item.rotation}deg)` }} className="max-h-[70vh] max-w-full object-contain transition-transform" />
           )}
         </div>
       </div>
@@ -459,14 +473,11 @@ function ReviewPanel({
               <span className="text-muted-foreground">Tally entry type:</span>
               {evaluated.party.source === "guess" ? (
                 <select
-                  defaultValue=""
-                  onChange={(e) => e.target.value && onChooseEntryType(e.target.value as EntryType)}
-                  className="rounded-md border border-rose-400 bg-rose-50 px-2 py-1 text-sm"
-                  aria-label="Choose the Tally entry type for this party"
+                  value={evaluated.party.entryType}
+                  onChange={(e) => onChooseEntryType(e.target.value as EntryType)}
+                  className="rounded-md border bg-white px-2 py-1 text-sm"
+                  aria-label="Tally entry type for this party (auto-suggested)"
                 >
-                  <option value="" disabled>
-                    Choose (suggested {evaluated.party.entryType})
-                  </option>
                   {ENTRY_TYPES.map((type) => (
                     <option key={type}>{type}</option>
                   ))}
@@ -479,9 +490,6 @@ function ReviewPanel({
             </div>
           )}
         </div>
-        {evaluated?.party.source === "guess" && (
-          <p className="text-xs text-rose-700">New party: choose how it is entered in Tally. It will be remembered in your party settings.</p>
-        )}
 
         {evaluated && evaluated.reasons.length > 0 && (
           <ul className="space-y-1 rounded-lg border bg-white p-3 text-sm" role="status">

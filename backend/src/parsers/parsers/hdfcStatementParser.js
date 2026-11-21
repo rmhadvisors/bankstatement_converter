@@ -18,7 +18,7 @@ import { clean, parseAmount, roundMoney } from "./common.js";
 
 const HEADER = /^Date\s+Narration\s+Chq\.?\/Ref\.?\s*No\.?\s+Value Dt\s+Withdrawal Amt\.?\s+Deposit Amt\.?\s+Closing Balance/i;
 const DATE = /^(\d{2})\/(\d{2})\/(\d{2})$/;
-const AMOUNT = /^(?:\d{1,3}(?:,\d{2,3})+|\d*)\.\d{1,2}$/; // "55.00", "1,234,567.89", ".80"
+const AMOUNT = /^-?(?:\d{1,3}(?:,\d{2,3})+|\d*)\.\d{1,2}$/; // "55.00", "1,234,567.89", ".80"
 const NARRATION_X = [60, 280]; // narration column; text left of it is the date, right of it the reference
 const REFERENCE_X = [280, 360];
 const FULL_LINE = 36; // the first narration line is 40 chars wide when it is full; shorter ones broke at a space
@@ -48,20 +48,22 @@ function parseRow(entry, columns) {
   const date = new Date(Date.UTC(2000 + Number(match[3]), Number(match[2]) - 1, Number(match[1])));
 
   const amounts = amountsOf(items.slice(1)).filter((item) => item.x > REFERENCE_X[1]);
-  if (amounts.length !== 2) return { date, incomplete: true };
-  const [amount, balance] = amounts;
+  // Never drop a row: with two or more amounts take the last two (amount, balance); with one, keep the
+  // amount and derive the balance from the previous row afterwards; with none, keep the row and flag it.
+  const [amount, balance] = amounts.length >= 2 ? amounts.slice(-2) : [amounts[0], null];
   // Right-aligned: an amount is a credit when it starts right of the deposit header's start minus a margin,
   // and a debit when it starts left of it; the balance is further right still (its own band).
-  const isCredit = amount.x >= columns.deposit - 6;
+  const isCredit = amount ? amount.x >= columns.deposit - 6 : false;
   const reference = items.slice(1).find((item) => item.x >= REFERENCE_X[0] && item.x < REFERENCE_X[1]);
 
   return {
     date,
     parts: [clean(items.slice(1).filter((item) => item.x >= NARRATION_X[0] && item.x < NARRATION_X[1]).map((item) => item.text).join(" "))],
     chequeNo: reference ? clean(reference.text) : null,
-    withdrawal: isCredit ? null : Math.abs(amount.value),
-    deposit: isCredit ? Math.abs(amount.value) : null,
-    balance: roundMoney(balance.value),
+    withdrawal: amount && !isCredit ? Math.abs(amount.value) : null,
+    deposit: amount && isCredit ? Math.abs(amount.value) : null,
+    balance: balance ? roundMoney(balance.value) : null,
+    unreadable: !amount,
   };
 }
 
@@ -91,11 +93,6 @@ function parseHdfcStatementTransactions(lines) {
     if (/^STATEMENT SUMMARY/i.test(text)) break;
 
     const row = parseRow(entry, columns);
-    if (row?.incomplete) {
-      current = null;
-      reconciliationIssues.push(`A row dated ${row.date.toISOString().slice(0, 10)} has no readable amount and balance and was left out.`);
-      continue;
-    }
     if (row) {
       current = row;
       transactions.push(row);
@@ -110,7 +107,17 @@ function parseHdfcStatementTransactions(lines) {
     }
   }
 
+  let previous = null;
   for (const row of transactions) {
+    const day = row.date.toISOString().slice(0, 10);
+    if (row.unreadable) reconciliationIssues.push(`A row dated ${day} has no readable amount; it is kept with blank amounts, check it against the PDF.`);
+    else if (row.balance === null) {
+      if (previous === null) row.balance = null;
+      else row.balance = roundMoney(previous + (row.deposit ?? 0) - (row.withdrawal ?? 0));
+      reconciliationIssues.push(`A row dated ${day} had no readable balance; it is kept and the balance was calculated.`);
+    }
+    if (row.balance !== null) previous = row.balance;
+    delete row.unreadable;
     const [first, ...rest] = row.parts;
     row.particulars = clean(rest.reduce((text, part, i) => text + (i === 0 && first.length < FULL_LINE ? " " : "") + part, first));
     delete row.parts;

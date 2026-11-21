@@ -2,6 +2,7 @@
 // GST Entries rows are built per GST rate from the lines; other amounts are written values only.
 import ExcelJS from "exceljs";
 import { parseDmy } from "./validate.js";
+import { validHsn } from "./rules.js";
 
 const TEAL = "FF2F5F5F";
 const YELLOW = "FFFFF2CC"; // light yellow, as in the client's sample workbook
@@ -166,7 +167,7 @@ function gstRows(entry, gstLines) {
 
 // entries: [{ invoice, result, sourceFile, entryType, partyName }]; parties: [{ name, gstin, entryType }]
 // options.includePartySettings: add the Party Settings sheet (off by default).
-async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySettings = false } = {}) {
+async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySettings = false, failed = [] } = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Bank Statement Convertor";
   const sorted = [...entries].sort((a, b) => (parseDmy(a.invoice.invoiceDate)?.getTime() ?? 0) - (parseDmy(b.invoice.invoiceDate)?.getTime() ?? 0));
@@ -191,7 +192,7 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
       const added = gst.addRow([
         parseDmy(invoice.invoiceDate),
         entry.partyName,
-        invoice.supplier?.gstin ?? "",
+        (entry.salesMode ? invoice.buyer : invoice.supplier)?.gstin ?? "",
         invoice.invoiceNo ?? "",
         row.taxable,
         row.igst,
@@ -321,6 +322,11 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
   }
   finish(review, { moneyColumns: [5], wrapColumns: [6, 7], highlight: reviewYellow });
 
+  // Errors: files that could not be read are listed here, never silently left out.
+  const errors = addSheet(workbook, "Errors", ["SOURCE", "WHY IT WAS NOT CONVERTED"], [34, 90]);
+  for (const item of failed) errors.addRow([item.sourceFile, item.message]);
+  finish(errors, { wrapColumns: [2] });
+
   if (includePartySettings) {
     const settings = addSheet(workbook, "Party Settings", ["SR.NO", "PARTY NAME", "ENTRY TYPE", "OUTPUT SHEET"], [7, 30, 12, 16]);
     const outputSheet = { STOCK: "GST Entries", NORMAL: "GST Entries", TCS: "TCS Entries", IMPORT: "Import file format (pending)" };
@@ -338,4 +344,94 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
   return workbook.xlsx.writeBuffer();
 }
 
-export { buildTallyWorkbookBuffer };
+// The invoice export: ONE "GST Entries" sheet, one row per invoice line (an invoice with no lines gets one row from its
+// totals), plus an "Errors" sheet only when a file could not be read. Cells with no value are yellow on a white sheet.
+// Line tax = line value x rate; where one rate covers the invoice and the printed CGST/SGST/IGST differs by rounding,
+// the difference goes on the last line so the invoice adds up to its printed tax.
+// ponytail: buildTallyWorkbookBuffer (multi-sheet) is no longer used by the app; kept for its tests until the client confirms.
+async function buildInvoiceSheetBuffer(entries, { failed = [] } = {}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Bank Statement Convertor";
+  const sorted = [...entries].sort((a, b) => (parseDmy(a.invoice.invoiceDate)?.getTime() ?? 0) - (parseDmy(b.invoice.invoiceDate)?.getTime() ?? 0));
+  const sheet = addSheet(workbook, "GST Entries", ["DATE", "PARTY NAME", "GSTIN", "INVOICE NO", "HSN CODE", "QUANTITY(NOS/SQFT/MTR)", "RATE", "TAXABLE AMOUNT", "IGST", "CGST", "SGST", "GST RATE", "STOCK (IF APPLICABLE)"], [12, 30, 19, 15, 11, 14, 11, 16, 11, 12, 12, 10, 40]);
+  const hsnYellow = [];
+  const missing = []; // [row, column] cells with no value: yellow on a white sheet
+  const gstRateCell = (r, values) => {
+    const [taxable, igst, cgst, sgst] = values;
+    return { formula: `IF(H${r}=0,"",SUM(I${r}:K${r})/H${r})`, result: has(taxable) && taxable !== 0 ? round2(((igst ?? 0) + (cgst ?? 0) + (sgst ?? 0)) / taxable) : "" };
+  };
+  for (const entry of sorted) {
+    const { invoice, result } = entry;
+    const t = invoice.totals ?? {};
+    const lines = invoice.lineItems ?? [];
+    const intra = result.computed.intraState;
+    // Lines with no written rate share the invoice's rate: (printed tax - tax of the lines with a rate) / their value,
+    // snapped to a standard slab. Without this the whole printed tax lands on the first line and its rate looks like 85%.
+    const unknown = lines.filter((line) => !has(line.gstRate) && lineValue(line) !== null);
+    let guess = null;
+    const printedTax = (t.igst ?? 0) + (t.cgst ?? 0) + (t.sgst ?? 0);
+    if (unknown.length && printedTax > 0) {
+      const known = lines.reduce((a, line) => a + (has(line.gstRate) && lineValue(line) !== null ? (lineValue(line) * line.gstRate) / 100 : 0), 0);
+      const value = unknown.reduce((a, line) => a + lineValue(line), 0);
+      const pct = value > 0 ? ((printedTax - known) / value) * 100 : null;
+      guess = pct === null ? null : [0, 5, 12, 18, 28].find((slab) => Math.abs(slab - pct) <= 0.75) ?? null;
+    }
+    const rateOf = (line) => (has(line.gstRate) ? line.gstRate : guess);
+    const rows = lines.map((line) => {
+      const taxable = lineValue(line);
+      const rate = rateOf(line);
+      const tax = rate === null || taxable === null ? null : round2((taxable * rate) / (intra === false ? 100 : 200));
+      const split = (interstate) => (tax === null ? null : interstate === (intra === false) ? tax : 0);
+      return { item: line.description ?? "", hsn: line.hsnSac ?? null, hsnNote: line.hsnNote || (line.hsnSac && !validHsn(line.hsnSac) ? `HSN ${line.hsnSac} is not a valid code` : null), qty: line.qty ?? null, rate: line.rate ?? null, taxable, igst: split(true), cgst: split(false), sgst: split(false) };
+    });
+    if (!rows.length) rows.push({ hsn: null, qty: null, rate: null, taxable: result.computed.taxable, igst: has(t.igst) ? t.igst : null, cgst: has(t.cgst) ? t.cgst : null, sgst: has(t.sgst) ? t.sgst : null });
+    else {
+      const rates = new Set(lines.map(rateOf));
+      for (const key of ["igst", "cgst", "sgst"]) {
+        if (!has(t[key])) continue;
+        if (rates.size === 1 && !rates.has(null)) {
+          const sum = round2(rows.reduce((a, row) => a + (row[key] ?? 0), 0));
+          if (sum !== t[key] && Math.abs(sum - t[key]) <= 1) rows.at(-1)[key] = round2(rows.at(-1)[key] + t[key] - sum);
+        } else if (rows.every((row) => row[key] === null)) rows[0][key] = t[key]; // no line rate written: the printed tax goes on the first line
+      }
+    }
+    for (const row of rows) {
+      const added = sheet.addRow([parseDmy(invoice.invoiceDate), entry.partyName, (entry.salesMode ? invoice.buyer : invoice.supplier)?.gstin ?? "", invoice.invoiceNo ?? "", row.hsn, row.qty, row.rate, row.taxable, row.igst, row.cgst, row.sgst, null, row.item ?? ""]);
+      // An HSN not written on the bill (or not a valid code) is a yellow cell with the reason as a cell note.
+      if (row.hsnNote) {
+        added.getCell(5).note = row.hsnNote;
+        hsnYellow.push(added.number);
+      }
+      added.getCell(12).value = gstRateCell(added.number, [row.taxable, row.igst, row.cgst, row.sgst]);
+      const vals = [parseDmy(invoice.invoiceDate), entry.partyName, (entry.salesMode ? invoice.buyer : invoice.supplier)?.gstin, invoice.invoiceNo, row.hsn, row.qty, row.rate, row.taxable];
+      vals.forEach((v, i) => (v === null || v === undefined || v === "" || (typeof v === "number" && Number.isNaN(v))) && missing.push([added.number, i + 1]));
+      if (row.igst === null && row.cgst === null && row.sgst === null) missing.push([added.number, 9], [added.number, 10], [added.number, 11]);
+      if (!row.item) missing.push([added.number, 13]);
+      if (!has(row.taxable) || row.taxable === 0) missing.push([added.number, 12]);
+    }
+  }
+  if (sheet.rowCount > 1) totalRow(sheet, "TOTAL", 4, [8, 9, 10, 11], 2);
+  finish(sheet, { moneyColumns: [7, 8, 9, 10, 11], dateColumns: [1], percentColumns: [12] });
+  // White grid, text left, numbers right; only the cells with no value (or an HSN to check) are yellow.
+  const line = { style: "thin", color: { argb: "FFBFBFBF" } };
+  const solid = (argb) => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+  sheet.eachRow((row, n) => {
+    for (let col = 1; col <= 13; col++) {
+      const cell = row.getCell(col);
+      cell.border = { top: line, left: line, bottom: line, right: line };
+      if (n === 1) continue;
+      cell.fill = solid("FFFFFFFF");
+      cell.alignment = { vertical: "middle", horizontal: col >= 6 && col <= 12 ? "right" : col === 5 ? "center" : "left" };
+    }
+  });
+  for (const [r, col] of [...missing, ...hsnYellow.map((r) => [r, 5])]) sheet.getRow(r).getCell(col).fill = solid("FFFFFF00");
+
+  if (failed.length) {
+    const errors = addSheet(workbook, "Errors", ["SOURCE", "WHY IT WAS NOT CONVERTED"], [34, 90]);
+    for (const item of failed) errors.addRow([item.sourceFile, item.message]);
+    finish(errors, { wrapColumns: [2] });
+  }
+  return workbook.xlsx.writeBuffer();
+}
+
+export { buildInvoiceSheetBuffer, buildTallyWorkbookBuffer };

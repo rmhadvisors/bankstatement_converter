@@ -3,6 +3,50 @@
 const has = (n) => typeof n === "number" && Number.isFinite(n);
 const round2 = (n) => Math.round((n + Math.sign(n) * Number.EPSILON) * 100) / 100;
 
+// HSN/SAC: digits only, 4, 6 or 8 long, chapter 01-97 (99 allowed for 6-digit SAC service codes).
+function validHsn(value) {
+  const text = String(value ?? "");
+  if (!/^(\d{4}|\d{6}|\d{8})$/.test(text)) return false;
+  const chapter = Number(text.slice(0, 2));
+  return (chapter >= 1 && chapter <= 97) || (chapter === 99 && text.length === 6);
+}
+
+// Item keywords for matching the same item across lines: description without numbers, units and filler words.
+const ITEM_FILLER = new Set(["sf", "sft", "sqft", "sq", "ft", "mtr", "mtrs", "pc", "pcs", "nos", "no", "tin", "tins", "litre", "lit", "ltr", "ltrs", "per", "piece", "soft", "of", "the", "and", "p"]);
+function itemKey(description) {
+  const words = String(description ?? "").toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !ITEM_FILLER.has(w));
+  return words.join(" ");
+}
+
+// The numbers of a raw line in reading order: "68/SF flim 3920 55/- 3,740/-" -> [68, 3920, 55, 3740].
+const rawNumbers = (text) => [...String(text ?? "").matchAll(/\d[\d,]*(?:\.\d+)?/g)].map((m) => ({ text: m[0].replace(/,/g, ""), value: Number(m[0].replace(/,/g, "")) })).filter((n) => Number.isFinite(n.value));
+const near = (a, b) => Math.abs(a - b) <= 1.0001;
+
+// HSN (and a missing rate) from the line's own written text. A 4, 6 or 8 digit whole number is the HSN only if the
+// remaining numbers still satisfy qty x rate = amount (tolerance 1). Exactly one such number, or nothing is taken.
+// -> { hsn, rate } | null
+function hsnFromRawLine(line, invoice) {
+  const numbers = rawNumbers(line.rawLine);
+  if (numbers.length < 3) return null;
+  const invoiceDigits = String(invoice.invoiceNo ?? "").replace(/\D/g, "");
+  const found = [];
+  numbers.forEach((candidate, index) => {
+    if (!validHsn(candidate.text) || index === numbers.length - 1) return;
+    const year = candidate.text.length === 4 && Number(candidate.text) >= 1990 && Number(candidate.text) <= 2100;
+    if (year || [line.qty, line.rate, line.amount, line.taxableValue].some((v) => has(v) && v === candidate.value) || candidate.text === invoiceDigits) return;
+    const rest = numbers.filter((_, i) => i !== index);
+    const amount = rest[rest.length - 1];
+    if (has(line.amount) && !near(amount.value, line.amount)) return;
+    for (let r = 1; r < rest.length - 1; r += 1) {
+      if (index < numbers.indexOf(rest[r]) && rest.slice(0, r).some((qty) => near(qty.value * rest[r].value, amount.value))) {
+        found.push({ hsn: candidate.text, rate: rest[r].value });
+        break;
+      }
+    }
+  });
+  return found.length === 1 ? found[0] : null;
+}
+
 // "total area 337 sq ft", "966.45 sqft", "15 SQFT", "100 KGS"
 const UNIT_SOURCE = String.raw`sq\.?\s*f(?:ee)?t|sq\.?\s*ft|sqft|sft|sq\.?\s*m(?:tr)?s?|sqm|r\.?\s*ft|rft|running\s*ft|kgs?|nos?|pcs|mtrs?|ltrs?|bags?|cft|brass`;
 const QTY_IN_TEXT = new RegExp(String.raw`(\d+(?:\.\d+)?)\s*(${UNIT_SOURCE})\b`, "gi");
@@ -55,7 +99,8 @@ function repeatsInvoice(note, invoice) {
   return false;
 }
 
-function applyReadingRules(input) {
+// options.dictionary: Map(item keyword -> HSN) from hsnDictionary.js.
+function applyReadingRules(input, { dictionary = new Map() } = {}) {
   const invoice = structuredClone(input);
   const derived = []; // what was filled in by code, for the review notes
   invoice.confidence ??= {};
@@ -67,6 +112,39 @@ function applyReadingRules(input) {
     if (line.unit && /^(?:sq\.?\s*f(?:ee)?t|sft|sq\.?\s*m(?:tr)?s?|r\.?\s*ft|running\s*ft)$/i.test(line.unit.trim())) line.unit = normalizeUnit(line.unit.trim());
   }
 
+  // A 4-8 digit whole "qty" that does not multiply out to the amount is the HSN/SAC code read into the wrong column.
+  lines.forEach((line, i) => {
+    if (line.hsnSac || !Number.isInteger(line.qty) || !/^\d{4,8}$/.test(String(line.qty))) return;
+    if (has(line.rate) && has(line.amount) && Math.abs(line.qty * line.rate - line.amount) <= 1) return;
+    line.hsnSac = String(line.qty);
+    line.qty = null;
+    derived.push(`Line ${line.sno ?? i + 1}: ${line.hsnSac} is 4+ digits and does not match rate x amount, so it is the HSN, not the quantity.`);
+  });
+
+  // HSN still empty. a) from the line's own written text; b) the same item elsewhere on this invoice; c) the item
+  // dictionary. Only a) is a direct reading; b) and c) are flagged (line.hsnNote) because the bill does not say it.
+  lines.forEach((line, i) => {
+    if (line.hsnSac) return;
+    const hit = hsnFromRawLine(line, invoice);
+    if (!hit) return;
+    line.hsnSac = hit.hsn;
+    derived.push(`Line ${line.sno ?? i + 1}: HSN ${hit.hsn} read from the line's written text.`);
+    if (!has(line.rate)) (line.rate = hit.rate, derived.push(`Line ${line.sno ?? i + 1}: rate ${hit.rate} read from the line's written text.`));
+  });
+  lines.forEach((line, i) => {
+    if (line.hsnSac) return;
+    const key = itemKey(line.description);
+    if (!key) return;
+    const same = lines.find((other) => other !== line && other.hsnSac && itemKey(other.description) === key);
+    const fromDictionary = same ? null : dictionary.get(key);
+    const hsn = same?.hsnSac ?? fromDictionary;
+    if (!hsn) return;
+    const where = same ? `line ${same.sno ?? lines.indexOf(same) + 1}` : "the item dictionary";
+    line.hsnSac = hsn;
+    line.hsnNote = `HSN ${hsn} taken from ${where}, not written on the bill`;
+    derived.push(`Line ${line.sno ?? i + 1}: ${line.hsnNote}.`);
+  });
+
   // Line qty/unit written inside the description (no qty column on the form).
   lines.forEach((line, i) => {
     if (has(line.qty) || !line.description) return;
@@ -77,6 +155,35 @@ function applyReadingRules(input) {
     invoice.confidence[`lineItems[${i}].qty`] ??= "medium";
     derived.push(`Line ${line.sno ?? i + 1}: ${/^(sqft|sqm|rft)$/.test(line.unit ?? "") ? "area" : "qty"} ${line.qty} ${line.unit} taken from the description.`);
   });
+
+  // Still no qty: amount / rate.
+  lines.forEach((line, i) => {
+    if (has(line.qty) || !has(line.rate) || line.rate <= 0 || !has(line.amount)) return;
+    line.qty = round2(line.amount / line.rate);
+    invoice.confidence[`lineItems[${i}].qty`] ??= "medium";
+    derived.push(`Line ${line.sno ?? i + 1}: qty ${line.qty} worked out as amount / rate.`);
+  });
+
+  // Taxable amount and CGST/SGST from each other (a missing one only; written values stay).
+  const half = (rate) => (has(rate) ? rate : null);
+  const taxRate = half(t.cgstRate) ?? half(t.sgstRate);
+  if (!has(t.cgst) && has(t.sgst)) (t.cgst = t.sgst, derived.push("CGST taken as equal to SGST."));
+  else if (!has(t.sgst) && has(t.cgst)) (t.sgst = t.cgst, derived.push("SGST taken as equal to CGST."));
+  const linesSum = lines.every((line) => has(line.amount)) && lines.length ? round2(lines.reduce((sum, line) => sum + line.amount, 0)) : null;
+  if (!has(t.taxableAmount) && !has(t.subtotal) && (has(t.cgst) || has(t.igst))) { // only when a tax amount was written
+    if (has(t.cgst) && taxRate) (t.taxableAmount = round2((t.cgst * 100) / taxRate), derived.push(`Taxable amount ${t.taxableAmount} worked out from CGST ${t.cgst} at ${taxRate}%.`));
+    else if (linesSum !== null) (t.taxableAmount = linesSum, derived.push(`Taxable amount ${linesSum} taken as the sum of the lines.`));
+    else if (has(t.grandTotal) && (has(t.cgst) || has(t.igst))) (t.taxableAmount = round2(t.grandTotal - (t.cgst ?? 0) - (t.sgst ?? 0) - (t.igst ?? 0) - (t.roundOff ?? 0)), derived.push(`Taxable amount ${t.taxableAmount} worked out as grand total - taxes.`));
+  }
+  const taxable0 = has(t.taxableAmount) ? t.taxableAmount : null;
+  if (taxable0 && !taxRate && has(t.cgst) && has(t.sgst) && t.cgst === t.sgst) {
+    const each = round2((t.cgst / taxable0) * 100);
+    const standard = [0.125, 0.5, 1.5, 2.5, 6, 9, 14].find((r) => Math.abs(r - each) <= 0.15);
+    if (standard !== undefined) (t.cgstRate = t.sgstRate = standard, derived.push(`GST rate ${standard * 2}% worked out from CGST / taxable amount.`));
+  } else if (taxable0 && taxRate && !has(t.cgst) && !has(t.igst)) {
+    t.cgst = t.sgst = round2((taxable0 * taxRate) / 100);
+    derived.push(`CGST and SGST ${t.cgst} each worked out from the taxable amount at ${taxRate}%.`);
+  }
 
   // Line GST rate from the invoice-level CGST x% + SGST x% (or IGST x%).
   const invoiceRate = has(t.igstRate) && t.igstRate > 0 ? t.igstRate : has(t.cgstRate) && has(t.sgstRate) && t.cgstRate === t.sgstRate ? t.cgstRate + t.sgstRate : null;
@@ -116,4 +223,4 @@ function applyReadingRules(input) {
   return { invoice, derived };
 }
 
-export { applyReadingRules, normalizeUnit };
+export { applyReadingRules, hsnFromRawLine, itemKey, normalizeUnit, validHsn };

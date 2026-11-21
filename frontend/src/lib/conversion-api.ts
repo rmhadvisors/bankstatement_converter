@@ -135,13 +135,16 @@ async function submitAndPoll(
 }
 
 export async function convertPdfViaApi(
-  file: File,
+  input: File | File[], // several photos = the pages of one statement, in this order
+
   password = "",
   scanned = false,
   onProgress?: (progress: ConversionProgress) => void,
 ): Promise<BankConvertResult> {
+  const files = Array.isArray(input) ? input : [input];
+  const file = files[0];
   const form = new FormData();
-  form.append("statement", file, file.name);
+  for (const part of files) form.append("statement", part, part.name);
   form.append("scanned", String(scanned));
   form.append("password", password);
 

@@ -1,0 +1,9 @@
+{
+  "_note": "Hand-verified figures per sample statement. Add a file + its numbers here to put it under npm run check-samples. A key left out is not checked.",
+  "samples": [
+    { "name": "BOB-273 overdraft", "file": "tests/fixtures/bank/BOB-273.pdf", "status": "ok", "rows": 131, "opening": -9066889.82, "withdrawal": 24581278.56, "deposit": 24984780.95, "closing": -8663387.43 },
+    { "name": "BCCB passbook photos (22 pages)", "file": "tests/fixtures/bccb-passbook-photos.pdf", "rows": 314, "opening": 3017.58, "closing": 18060.12 },
+    { "name": "BCCB ledger statement", "file": "tests/fixtures/bccb-018110100001093.pdf", "rows": 404 },
+    { "name": "Bassein passbook photo (4 pages)", "file": "tests/fixtures/bank/bassein-savings-passbook-4pages.pdf", "firstBalances": [194906.03, 194904.23, 196043.23, 215176.23, 234309.23, 253442.23, 3442.23, 3432.23, 3430.43, 5008.43, 24141.43, 45400.43], "closing": 370517.82 }
+  ]
+}

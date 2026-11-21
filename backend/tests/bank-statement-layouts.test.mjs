@@ -158,6 +158,22 @@ test("HDFC text-layer statement: wrapped narration stays with its row, right-ali
   assert.deepEqual([s.printedTotals.withdrawal, s.printedTotals.deposit, s.printedTotals.closingBalance], [1055, 12870, 12815]);
 });
 
+test("HDFC text-layer statement: a debit that overdraws (negative balance) before its return credit is kept", () => {
+  const lines = [
+    line([28, "HDFC BANK LIMITED"]),
+    hdfcHeader,
+    hdfcRow("ACH D- TP ACH ICICI BANK-1", "0000003565290425", "debit", 440, "45,563.00", 600, "-44,058.42"),
+    hdfcRow("ACH D- TP ACH ICICI BANK-1", "0000003565290425", "credit", 520, "45,563.00", 599, "1,504.58"),
+    line([28, "STATEMENT SUMMARY :-"]),
+    line([30, "Opening Balance Dr Count Cr Count Debits Credits Closing Bal"]),
+    line([30, "1,504.58 1 1 45,563.00 45,563.00 1,504.58"]),
+  ];
+  const s = statement(lines);
+  assert.equal(s.transactions.length, 2);
+  assert.equal(s.transactions[0].balance, -44058.42);
+  assert.equal(s.reconciliation.status, "PASS");
+});
+
 test("HDFC statement parser only takes text-layer PDFs; a count that differs from the printed summary is an error", () => {
   const base = [line([28, "HDFC BANK LIMITED"]), hdfcHeader, hdfcRow("UPI-TEST", "0000111111111111", "debit", 452, "55.00", 605, "945.00")];
   const summary = [line([28, "STATEMENT SUMMARY :-"]), line([30, "Opening Balance Dr Count Cr Count Debits Credits Closing Bal"]), line([30, "1,000.00 2 0 55.00 0.00 945.00"])];

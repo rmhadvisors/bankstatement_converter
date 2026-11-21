@@ -35,7 +35,7 @@ function parseDate(text) {
 // A number token: a 2-decimal amount, or (balances only) an integer whose cents OCR dropped.
 function numeric(item) {
   if (parseDate(item.text)) return null; // "15.04.25" would read as the amount 1504.25
-  const amount = parseAmount(item.text);
+  const amount = parseAmount(String(item.text).replace(/\D+$/, "")); // a stray letter after the number ("81957.86Y") is OCR noise
   if (amount !== null) return { ...item, value: amount, approx: false };
   const whole = String(item.text).replace(/\s+/g, "").match(/^\d{5,7}$/);
   return whole ? { ...item, value: Number(whole[0]), approx: true } : null;
@@ -49,6 +49,7 @@ function readPage(pageNumber, pageLines) {
       (line.items || [])
         .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y) && String(item.text || "").trim())
         .map((item) => ({ x: item.x, y: item.y, text: String(item.text).trim(), line })),
+      { keepComplete: true },
     ),
   );
   // Lines holding a Brought/Carried Forward marker: their numbers are checkpoints, not rows.
@@ -94,15 +95,22 @@ function readPage(pageNumber, pageLines) {
   };
 }
 
-// Debit/credit side from where an amount sits relative to the other amounts on the page.
+// Debit/credit side from where an amount sits relative to the other amounts on the page. The balance column is
+// the far-right cluster; the split is the widest gap among the columns left of it (or the widest gap overall
+// when no balance column stands apart).
 function sideHints(tokens) {
   const xs = tokens.filter((token) => !token.approx && token.value < 1e7).map((token) => token.x).sort((a, b) => a - b);
-  let best = null;
-  for (let index = 1; index < xs.length; index += 1) {
-    const gap = xs[index] - xs[index - 1];
-    if (gap >= 100 && (!best || gap > best.gap)) best = { gap, split: (xs[index] + xs[index - 1]) / 2 };
-  }
-  return best?.split ?? null;
+  const widest = (list, minGap) => {
+    let best = null;
+    for (let index = 1; index < list.length; index += 1) {
+      const gap = list[index] - list[index - 1];
+      if (gap >= minGap && (!best || gap > best.gap)) best = { gap, split: (list[index] + list[index - 1]) / 2 };
+    }
+    return best;
+  };
+  const overall = widest(xs, 100);
+  const amounts = overall ? xs.filter((x) => x < overall.split) : xs;
+  return (overall && widest(amounts, 60)?.split) ?? overall?.split ?? null;
 }
 
 // Beam search over one page's number tokens, starting from the balance the page opens with.
@@ -148,7 +156,7 @@ function solvePage(page, startBalance, narrationHint) {
           for (const sign of [1, -1]) {
             const expected = roundMoney(state.balance + sign * amountValue);
             if (expected < 0) continue;
-            const sideCost = sideOf(amountToken) && sideOf(amountToken) !== (sign > 0 ? "D" : "W") ? 0.6 : 0;
+            const sideCost = sideOf(amountToken) && sideOf(amountToken) !== (sign > 0 ? "D" : "W") ? 1.2 : 0;
             let matched = false;
             for (let ib = state.i; ib < Math.min(tokens.length, ia + 4); ib += 1) {
               if (ib === ia) continue;
@@ -185,23 +193,38 @@ function parseChainPassbook(lines) {
   const rows = [];
   const issues = [];
   let balance = null;
-  for (const [pageNumber, pageLines] of [...byPage].sort((a, b) => a[0] - b[0])) {
-    const page = readPage(pageNumber, pageLines);
-    if (page.marks.bf !== null && balance !== null && !same(page.marks.bf, balance)) issues.push(`Page ${pageNumber}: Brought Forward ${page.marks.bf.toFixed(2)} does not match the previous page's closing balance ${balance.toFixed(2)}.`);
-    const start = balance ?? page.marks.bf;
+  // Photos of a passbook are often not in page order (a booklet photographed as it fell open): read the pages in
+  // date order so each page's balance continues from the one before it.
+  const pages = [...byPage].sort((x, y) => x[0] - y[0]).map(([pageNumber, pageLines]) => readPage(pageNumber, pageLines));
+  const when = (page) => median(page.dates.map((item) => item.date.getTime()));
+  if (pages.length > 1 && pages.every((page) => page.dates.length)) pages.sort((x, y) => when(x) - when(y));
+  for (const page of pages) {
+    const pageNumber = page.pageNumber;
+    // The page's own printed Brought Forward wins over the carried balance when they differ by more than an
+    // OCR slip (a page from elsewhere in the book); a near match is an OCR slip in the printed figure.
+    const printedBf = page.marks.bf;
+    const start = balance === null || printedBf === null || same(printedBf, balance) || closeDigits(printedBf, balance) ? (balance ?? printedBf) : printedBf;
+    if (printedBf !== null && balance !== null && !same(printedBf, balance)) issues.push(`Page ${pageNumber}: Brought Forward ${printedBf.toFixed(2)} does not match the previous page's closing balance ${balance.toFixed(2)}.`);
     if (!page.tokens.length) {
       issues.push(`Page ${pageNumber}: no readable amounts (rotated or too blurred); its rows are missing.`);
       continue;
     }
     const narrationHint = () => "D";
-    const solved = solvePage(page, start, narrationHint);
+    // The carried balance can itself be a misread; also try the page on its own (its first amount + balance start
+    // the chain) and keep whichever explains more of the page.
+    const bad = (solution) => (solution ? solution.rows.filter((row) => !row.confirmed && row.note !== "balance misread").length : Infinity);
+    let solved = solvePage(page, start, narrationHint);
+    if (start !== null && bad(solved) > 0) {
+      const alone = solvePage(page, null, narrationHint);
+      if (bad(alone) < bad(solved)) solved = alone;
+    }
     if (!solved?.rows.length) {
       issues.push(`Page ${pageNumber}: no rows could be matched to the running balance.`);
       continue;
     }
     // A page where most rows could not be confirmed is too blurred to read: its rows would be mostly
     // guesses, so none are output and the page is reported instead.
-    const unconfirmed = solved.rows.filter((row) => !row.confirmed).length;
+    const unconfirmed = solved.rows.filter((row) => !row.confirmed && row.note !== "balance misread").length; // a near-match balance with the exact amount is flagged, not rejected
     if (unconfirmed / solved.rows.length > 0.4) {
       issues.push(`Page ${pageNumber}: too blurred to read reliably (${unconfirmed} of ${solved.rows.length} rows could not be checked against the balance); its rows are missing.`);
       balance = page.marks.cf;
@@ -256,6 +279,7 @@ function parseChainPassbook(lines) {
       withdrawal: row.delta < 0 ? Math.abs(row.delta) : null,
       deposit: row.delta > 0 ? row.delta : null,
       balance: row.balance,
+      sourcePage: row.page,
       ...(row.confirmed ? {} : { hadOcrCorrection: true, correctionNote: row.note ?? "balance misread" }),
     });
     rows[index].date = date ?? row.date;

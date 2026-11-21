@@ -8,11 +8,12 @@ import { fileURLToPath } from "node:url";
 import { validateInvoiceJson } from "./schema.js";
 import { validateBatch } from "./validate.js";
 import { ENTRY_TYPES, guessEntryType, matchParty } from "./parties.js";
-import { buildTallyWorkbookBuffer } from "./tallyWorkbook.js";
-import { sniffType } from "./images.js";
+import { buildInvoiceSheetBuffer } from "./tallyWorkbook.js";
+import { sniffType, splitBillBook } from "./images.js";
 import { doubleCheckAllowed, extractInvoice, providerConfigured, providerInfo } from "./extract.js";
 
 const MAX_FILES = 20;
+const MAX_PAGES = 60; // after a bill-book PDF is split into one upload per page
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const JOB_TTL_MS = 30 * 60 * 1000;
 const DEMO_DIR = process.env.INVOICE_DEMO_DIR || join(fileURLToPath(new URL(".", import.meta.url)), "..", "..", "tests", "fixtures", "invoices");
@@ -61,10 +62,13 @@ async function handleInvoiceConvertSubmit(request) {
     if (file.size > MAX_FILE_BYTES) return invoiceError("FILE_TOO_LARGE", `${file.name} is larger than 20 MB.`);
     const buffer = await bufferOf(file);
     if (!sniffType(buffer)) return invoiceError("INVOICE_UNSUPPORTED_FILE", `${file.name} is not a JPG, PNG, WEBP, HEIC or PDF file.`);
-    uploads.push({ name: file.name, buffer });
+    const pages = sniffType(buffer) === "pdf" ? await splitBillBook(buffer).catch(() => null) : null;
+    if (pages) pages.forEach((page, i) => uploads.push({ name: `${file.name} (page ${i + 1})`, buffer: page, book: file.name }));
+    else uploads.push({ name: file.name, buffer });
   }
 
   // "Double-check handwritten bills" (settings page): honoured only when both providers are confirmed.
+  if (uploads.length > MAX_PAGES) return invoiceError("TOO_MANY_FILES", `At most ${MAX_PAGES} invoices (files or PDF pages) at a time.`);
   const doubleCheck = form.get("doubleCheck") === "true" && doubleCheckAllowed();
   const id = crypto.randomUUID();
   const job = { mode: mode(), doubleCheck, files: uploads.map((upload) => ({ name: upload.name, state: "queued" })), expiresAt: Date.now() + JOB_TTL_MS };
@@ -97,6 +101,30 @@ async function runInvoiceJob(job, uploads) {
       upload.buffer = null; // nothing of the upload outlives its processing
     }
   }));
+  for (const book of new Set(uploads.map((upload) => upload.book).filter(Boolean))) {
+    shareBookSeller(job.files.filter((_, i) => uploads[i].book === book).map((file) => file.invoice).filter(Boolean));
+  }
+}
+
+// A bill book (one PDF of many bills) is one seller's. Handwritten bills carry only the customer at the top, so
+// the model reads that customer as the supplier. The seller is taken from the bills that print both parties
+// (a printed tax invoice); on every bill that lacks a buyer, the written name becomes the buyer and the seller
+// is filled in. Mutates the invoices. Does nothing when no bill in the book shows the seller.
+function shareBookSeller(invoices) {
+  const key = (party) => String(party?.gstin || party?.name || "").toUpperCase().replace(/\s+/g, "");
+  const counts = new Map();
+  for (const { supplier, buyer } of invoices) {
+    if (supplier?.name && buyer?.name) counts.set(key(supplier), { party: supplier, n: (counts.get(key(supplier))?.n ?? 0) + 1 });
+  }
+  const seller = [...counts.values()].sort((a, b) => b.n - a.n)[0]?.party;
+  if (!seller) return;
+  for (const invoice of invoices) {
+    if (key(invoice.supplier) === key(seller) || invoice.buyer?.name || !invoice.supplier?.name) continue;
+    const { name, gstin, address } = invoice.supplier;
+    invoice.buyer = { ...invoice.buyer, name, gstin: gstin ?? null, address: address ?? null };
+    invoice.supplier = { ...seller };
+    (invoice.derived ??= []).push("Bill book: the written name is the buyer; the seller is taken from the printed bill in the same PDF.");
+  }
 }
 
 function handleInvoiceStatus(jobId) {
@@ -107,16 +135,18 @@ function handleInvoiceStatus(jobId) {
 }
 
 // items: [{ invoice, sourceFile, entryType? }] -> validation + party/entry type per invoice.
-function evaluate(items, { parties = [], financialYear = null, history = [] } = {}) {
+function evaluate(items, { parties = [], financialYear = null, history = [], salesMode = process.env.INVOICE_PARTY_SIDE === "buyer" } = {}) {
   const normalized = items.map((item) => ({ ...item, invoice: validateInvoiceJson(item.invoice ?? {}).invoice }));
   const results = validateBatch(normalized, { financialYear, history });
   return normalized.map((item, i) => {
-    const match = matchParty(item.invoice.supplier, parties);
+    // Sales invoices (issued by the user's client): the party is the customer, not the biller.
+    const counterparty = salesMode ? item.invoice.buyer : item.invoice.supplier;
+    const match = matchParty(counterparty, parties);
     const chosen = ENTRY_TYPES.includes(item.entryType) ? item.entryType : null;
-    const guess = guessEntryType(item.invoice);
+    const guess = guessEntryType({ ...item.invoice, supplier: counterparty });
     const party = match
       ? { name: match.party.name, entryType: match.party.entryType, source: "settings", matchedBy: match.matchedBy }
-      : { name: String(item.invoice.supplier?.name ?? "").toUpperCase(), entryType: chosen ?? guess.entryType, source: chosen ? "chosen" : "guess", guessReason: guess.reason };
+      : { name: String(counterparty?.name ?? "").toUpperCase(), entryType: chosen ?? guess.entryType, source: chosen ? "chosen" : "guess", guessReason: guess.reason };
     return { invoice: item.invoice, sourceFile: item.sourceFile ?? null, result: results[i], party };
   });
 }
@@ -130,14 +160,12 @@ async function handleInvoiceValidate(request) {
 
 async function handleInvoiceExport(request) {
   const body = await request.json().catch(() => null);
-  if (!Array.isArray(body?.items) || !body.items.length) return invoiceError("BAD_REQUEST", "Nothing to export.");
+  const failed = (Array.isArray(body?.failed) ? body.failed : []).map((f) => ({ sourceFile: String(f?.sourceFile ?? "").slice(0, 200), message: String(f?.message ?? "Could not be read.").slice(0, 500) }));
+  if (!Array.isArray(body?.items) || (!body.items.length && !failed.length)) return invoiceError("BAD_REQUEST", "Nothing to export.");
   const evaluated = evaluate(body.items, body);
-  const unconfirmed = evaluated.filter((entry) => entry.party.source === "guess");
-  if (unconfirmed.length) {
-    return invoiceError("ENTRY_TYPE_NEEDED", `Choose the Tally entry type for: ${[...new Set(unconfirmed.map((e) => e.party.name))].join(", ")}.`, 422);
-  }
-  const entries = evaluated.map((entry) => ({ ...entry, entryType: entry.party.entryType, partyName: entry.party.name }));
-  const buffer = await buildTallyWorkbookBuffer(entries, body.parties ?? [], { includePartySettings: body.includePartySettings === true });
+  // A party without a saved entry type uses the suggested one (guessEntryType); the user can still override it.
+  const entries = evaluated.map((entry) => ({ ...entry, entryType: entry.party.entryType, partyName: entry.party.name, salesMode: process.env.INVOICE_PARTY_SIDE === "buyer" }));
+  const buffer = await buildInvoiceSheetBuffer(entries, { failed });
   return new Response(buffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -155,4 +183,4 @@ async function handleInvoiceConfig() {
   return json({ mode: mode(), provider: providerInfo(), defaultParties: await loadDemoParties(), entryTypes: ENTRY_TYPES });
 }
 
-export { evaluate, handleInvoiceConfig, handleInvoiceConvertSubmit, handleInvoiceExport, handleInvoiceStatus, handleInvoiceValidate, setInvoiceExtractor };
+export { shareBookSeller, evaluate, handleInvoiceConfig, handleInvoiceConvertSubmit, handleInvoiceExport, handleInvoiceStatus, handleInvoiceValidate, setInvoiceExtractor };

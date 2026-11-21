@@ -336,16 +336,31 @@ async function convertStatement(filePath, options = {}) {
     failure = error;
   }
   const ai = options.ai || {};
+  let aiNote = null; // why the AI reader did not help: shown on the Review sheet instead of failing silently
   const wanted = failure ? !NO_AI_ERRORS.has(failure.code) : !statement.accounts && statement.review?.status !== "ok";
+  if (wanted && !options.password && !(ai.enabled ?? aiFallbackEnabled())) aiNote = "The AI reader is switched off on this server (needs BANK_AI_FALLBACK=true and Vertex or GEMINI_BILLING_CONFIRMED=true plus a key, then a restart), so this is the plain OCR result.";
   if (wanted && !options.password && (ai.enabled ?? aiFallbackEnabled())) {
     try {
-      const read = await readStatementWithAi(filePath, { provider: ai.provider, render: ai.render });
-      if (read && (failure || read.review.status === "ok")) return read;
+      // A photographed passbook the code read only in part: Gemini reads just the pages the code gave up on.
+      const rejected = [...new Set((statement?.review?.reasons ?? []).map((reason) => /^Page (\d+): (too blurred|no rows|no readable)/.exec(reason)?.[1]).filter(Boolean).map(Number))];
+      const partial = statement?.detectedFormat === "chain-passbook" && rejected.length ? rejected : null;
+      const known = new Map();
+      if (partial) {
+        for (const row of statement.transactions) {
+          if (!known.has(row.sourcePage)) known.set(row.sourcePage, []);
+          known.get(row.sourcePage).push({ date: row.date ? row.date.toISOString().slice(0, 10) : "", description: row.particulars, chequeNo: row.chequeNo, withdrawal: row.withdrawal, deposit: row.deposit, balance: row.balance });
+        }
+      }
+      const read = await readStatementWithAi(filePath, { provider: ai.provider, escalate: ai.escalate, render: ai.render, ...(partial ? { pages: partial, known } : {}) });
+      // Not ok is still taken when it is flagged for fewer reasons than the normal read: the AI call is already paid for.
+      if (read && (failure || read.review.status === "ok" || read.review.reasons.length < (statement.review?.reasons?.length ?? Infinity))) return read;
     } catch (error) {
       console.warn(`[bank-ai-fallback] AI read failed: ${error?.code || "error"}`);
+      aiNote = `The AI reader was tried but failed (${error?.code || "error"}: ${String(error?.message || "").slice(0, 120)}), so this is the plain OCR result.`;
     }
   }
   if (failure) throw failure;
+  if (aiNote && statement.review?.reasons) statement.review.reasons.push(aiNote);
   return statement;
 }
 
