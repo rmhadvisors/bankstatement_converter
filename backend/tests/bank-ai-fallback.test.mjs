@@ -105,3 +105,35 @@ test("a page the model skipped is re-read, not dropped", async () => {
   assert.equal(statement.transactions.length, 4);
   assert.equal(statement.review.status, "ok");
 });
+
+// A phone photo uploaded as a plain JPG (not wrapped in a PDF) must reach the AI reader as one page image.
+test("AI fallback reads a JPG photo upload as one page", async () => {
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const canvas = createCanvas(60, 60);
+  const path = join(mkdtempSync(join(tmpdir(), "ai-photo-")), "photo.jpg");
+  writeFileSync(path, await canvas.encode("jpeg"));
+  const provider = fakeProvider(saved("read-page1-only.json"));
+  const statement = await readStatementWithAi(path, { provider });
+  assert.equal(provider.calls, 1);
+  assert.ok(statement.transactions.length > 0);
+});
+
+// Several photos of one statement become one PDF with a page each, in the order given.
+test("imagesToPdf: N photos -> N pages; a PDF among them is refused", async () => {
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const { imagesToPdf } = await import("../src/invoice/images.js");
+  const photo = (w) => createCanvas(w, 80).encode("jpeg");
+  const merged = await imagesToPdf([await photo(60), await photo(70), await photo(80)]);
+  assert.equal((await PDFDocument.load(merged)).getPageCount(), 3);
+  await assert.rejects(async () => imagesToPdf([await photo(60), Buffer.from("%PDF-1.4")]), /photos only/);
+});
+
+// Escalation: the primary model misreads a page, only that page goes to the second model, the second answer is kept.
+test("escalate model re-reads only the failing pages", async () => {
+  const primary = fakeProvider(saved("read-misread.json"));
+  const escalate = fakeProvider(saved("read-ok.json"));
+  const statement = await readStatementWithAi(pdf("bccb-passbook-photos.pdf"), { provider: primary, escalate, render });
+  assert.equal(primary.calls, 1);
+  assert.equal(escalate.calls, 1);
+  assert.equal(statement.review.status, "ok");
+});

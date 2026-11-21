@@ -101,5 +101,5 @@ test("export: an HSN not written on the bill is a yellow cell with the reason as
   assert.equal(sheet.getRow(1).getCell(5).value, "HSN CODE");
   assert.match(String(sheet.getRow(2).getCell(5).note?.texts?.[0]?.text ?? sheet.getRow(2).getCell(5).note), /not written on the bill/);
   assert.equal(sheet.getRow(2).getCell(5).fill.fgColor.argb, "FFFFFF00");
-  assert.equal(sheet.getRow(3).getCell(5).fill?.fgColor?.argb, undefined);
+  assert.equal(sheet.getRow(3).getCell(5).fill?.fgColor?.argb, "FFFFFFFF");
 });

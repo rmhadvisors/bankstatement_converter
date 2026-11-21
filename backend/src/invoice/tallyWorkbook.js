@@ -345,7 +345,7 @@ async function buildTallyWorkbookBuffer(entries, parties = [], { includePartySet
 }
 
 // The invoice export: ONE "GST Entries" sheet, one row per invoice line (an invoice with no lines gets one row from its
-// totals), plus an "Errors" sheet only when a file could not be read. Flagged invoices are yellow, nothing else is added.
+// totals), plus an "Errors" sheet only when a file could not be read. Cells with no value are yellow on a white sheet.
 // Line tax = line value x rate; where one rate covers the invoice and the printed CGST/SGST/IGST differs by rounding,
 // the difference goes on the last line so the invoice adds up to its printed tax.
 // ponytail: buildTallyWorkbookBuffer (multi-sheet) is no longer used by the app; kept for its tests until the client confirms.
@@ -354,8 +354,8 @@ async function buildInvoiceSheetBuffer(entries, { failed = [] } = {}) {
   workbook.creator = "Bank Statement Convertor";
   const sorted = [...entries].sort((a, b) => (parseDmy(a.invoice.invoiceDate)?.getTime() ?? 0) - (parseDmy(b.invoice.invoiceDate)?.getTime() ?? 0));
   const sheet = addSheet(workbook, "GST Entries", ["DATE", "PARTY NAME", "GSTIN", "INVOICE NO", "HSN CODE", "QUANTITY(NOS/SQFT/MTR)", "RATE", "TAXABLE AMOUNT", "IGST", "CGST", "SGST", "GST RATE", "STOCK (IF APPLICABLE)"], [12, 30, 19, 15, 11, 14, 11, 16, 11, 12, 12, 10, 40]);
-  const yellow = new Set();
   const hsnYellow = [];
+  const missing = []; // [row, column] cells with no value: yellow on a white sheet
   const gstRateCell = (r, values) => {
     const [taxable, igst, cgst, sgst] = values;
     return { formula: `IF(H${r}=0,"",SUM(I${r}:K${r})/H${r})`, result: has(taxable) && taxable !== 0 ? round2(((igst ?? 0) + (cgst ?? 0) + (sgst ?? 0)) / taxable) : "" };
@@ -365,7 +365,18 @@ async function buildInvoiceSheetBuffer(entries, { failed = [] } = {}) {
     const t = invoice.totals ?? {};
     const lines = invoice.lineItems ?? [];
     const intra = result.computed.intraState;
-    const rateOf = (line) => (has(line.gstRate) ? line.gstRate : null);
+    // Lines with no written rate share the invoice's rate: (printed tax - tax of the lines with a rate) / their value,
+    // snapped to a standard slab. Without this the whole printed tax lands on the first line and its rate looks like 85%.
+    const unknown = lines.filter((line) => !has(line.gstRate) && lineValue(line) !== null);
+    let guess = null;
+    const printedTax = (t.igst ?? 0) + (t.cgst ?? 0) + (t.sgst ?? 0);
+    if (unknown.length && printedTax > 0) {
+      const known = lines.reduce((a, line) => a + (has(line.gstRate) && lineValue(line) !== null ? (lineValue(line) * line.gstRate) / 100 : 0), 0);
+      const value = unknown.reduce((a, line) => a + lineValue(line), 0);
+      const pct = value > 0 ? ((printedTax - known) / value) * 100 : null;
+      guess = pct === null ? null : [0, 5, 12, 18, 28].find((slab) => Math.abs(slab - pct) <= 0.75) ?? null;
+    }
+    const rateOf = (line) => (has(line.gstRate) ? line.gstRate : guess);
     const rows = lines.map((line) => {
       const taxable = lineValue(line);
       const rate = rateOf(line);
@@ -392,13 +403,28 @@ async function buildInvoiceSheetBuffer(entries, { failed = [] } = {}) {
         hsnYellow.push(added.number);
       }
       added.getCell(12).value = gstRateCell(added.number, [row.taxable, row.igst, row.cgst, row.sgst]);
-      if (result.status !== "OK") yellow.add(added.number);
+      const vals = [parseDmy(invoice.invoiceDate), entry.partyName, (entry.salesMode ? invoice.buyer : invoice.supplier)?.gstin, invoice.invoiceNo, row.hsn, row.qty, row.rate, row.taxable];
+      vals.forEach((v, i) => (v === null || v === undefined || v === "" || (typeof v === "number" && Number.isNaN(v))) && missing.push([added.number, i + 1]));
+      if (row.igst === null && row.cgst === null && row.sgst === null) missing.push([added.number, 9], [added.number, 10], [added.number, 11]);
+      if (!row.item) missing.push([added.number, 13]);
+      if (!has(row.taxable) || row.taxable === 0) missing.push([added.number, 12]);
     }
   }
   if (sheet.rowCount > 1) totalRow(sheet, "TOTAL", 4, [8, 9, 10, 11], 2);
-  finish(sheet, { moneyColumns: [7, 8, 9, 10, 11], dateColumns: [1], percentColumns: [12], highlight: yellow });
-
-  for (const r of hsnYellow) sheet.getRow(r).getCell(5).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF00" } };
+  finish(sheet, { moneyColumns: [7, 8, 9, 10, 11], dateColumns: [1], percentColumns: [12] });
+  // White grid, text left, numbers right; only the cells with no value (or an HSN to check) are yellow.
+  const line = { style: "thin", color: { argb: "FFBFBFBF" } };
+  const solid = (argb) => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+  sheet.eachRow((row, n) => {
+    for (let col = 1; col <= 13; col++) {
+      const cell = row.getCell(col);
+      cell.border = { top: line, left: line, bottom: line, right: line };
+      if (n === 1) continue;
+      cell.fill = solid("FFFFFFFF");
+      cell.alignment = { vertical: "middle", horizontal: col >= 6 && col <= 12 ? "right" : col === 5 ? "center" : "left" };
+    }
+  });
+  for (const [r, col] of [...missing, ...hsnYellow.map((r) => [r, 5])]) sheet.getRow(r).getCell(col).fill = solid("FFFFFF00");
 
   if (failed.length) {
     const errors = addSheet(workbook, "Errors", ["SOURCE", "WHY IT WAS NOT CONVERTED"], [34, 90]);

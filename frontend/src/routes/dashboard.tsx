@@ -118,6 +118,7 @@ function Dashboard() {
   const [drag, setDrag] = useState(false);
   const [view, setView] = useState<"home" | "history" | "settings" | "support">("home");
   const [pending, setPending] = useState<File[]>([]);
+  const [combine, setCombine] = useState(true); // scanned mode: the queued photos are the pages of one statement
   const [converting, setConverting] = useState(false);
   const [progress, setProgress] = useState<{
     fileName: string;
@@ -214,11 +215,16 @@ function Dashboard() {
   async function convertPending() {
     if (pending.length === 0 || converting) return;
     setConverting(true);
-    const files = pending;
+    const isPhoto = (f: File) => f.type.startsWith("image/") || /.(jpe?g|png|webp|heic)$/i.test(f.name);
+    const photos = mode === "scanned" && combine ? pending.filter(isPhoto) : [];
+    const groups: File[][] = pending.filter((f) => !photos.includes(f)).map((f) => [f]);
+    if (photos.length) groups.unshift(photos);
     setPending([]);
     let history = items;
 
-    for (const file of files) {
+    for (const group of groups) {
+      // A combined group shows as one entry: first photo's name + the page count.
+      const file = group.length > 1 ? new File(group, `${group[0].name.replace(/.[^.]+$/, "")} (${group.length} photos).pdf`) : group[0];
       const base: Conversion = {
         id: crypto.randomUUID(),
         file_name: file.name,
@@ -235,7 +241,7 @@ function Dashboard() {
 
       try {
         setProgress({ fileName: file.name });
-        const result = await convertPdfViaApi(file, pdfPassword.trim(), mode === "scanned", (p) =>
+        const result = await convertPdfViaApi(group, pdfPassword.trim(), mode === "scanned", (p) =>
           setProgress({ fileName: file.name, page: p.page, totalPages: p.totalPages }),
         );
         const rowsCount = result.rowsCount;
@@ -528,6 +534,13 @@ function Dashboard() {
                     }}
                   />
                 </div>
+
+                {mode === "scanned" && pending.filter((f) => f.type.startsWith("image/")).length > 1 && (
+                  <label className="mt-4 flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={combine} onChange={(e) => setCombine(e.target.checked)} className="h-4 w-4 rounded border" />
+                    These photos are the pages of one statement (combine, in the order listed)
+                  </label>
+                )}
 
                 {pending.length > 0 && (
                   <ul className="mt-4 space-y-2">

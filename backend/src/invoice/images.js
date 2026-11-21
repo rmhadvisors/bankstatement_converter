@@ -117,4 +117,17 @@ async function prepareInvoiceFile(filePath, { rotate = 0, longSide } = {}) {
   return { kind: "images", images: await renderPdfPages(buffer, rotate, longSide) };
 }
 
-export { invoiceError, prepareInvoiceFile, renderPdfPages, sniffType, splitBillBook, MAX_LONG_SIDE };
+// Several photos of one document (pages in upload order) -> one PDF, so the bank reader sees them as one statement.
+async function imagesToPdf(buffers) {
+  const { PDFDocument } = await import("pdf-lib");
+  const pdf = await PDFDocument.create();
+  for (const buffer of buffers) {
+    const type = sniffType(buffer);
+    if (!type || type === "pdf") throw invoiceError("INVOICE_UNSUPPORTED_FILE", "Combining works for photos only (JPG, PNG, WEBP, HEIC).");
+    const image = await pdf.embedJpg((await imageFileToJpeg(buffer, type, 0)).data);
+    pdf.addPage([image.width, image.height]).drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+  }
+  return Buffer.from(await pdf.save());
+}
+
+export { imagesToPdf, imageFileToJpeg, invoiceError, prepareInvoiceFile, renderPdfPages, sniffType, splitBillBook, MAX_LONG_SIDE };

@@ -6,6 +6,7 @@ try {
 }
 process.env.INVOICE_HSN_DICTIONARY = "off"; // tests never read or write the client's item dictionary
 delete process.env.INVOICE_PARTY_SIDE; // a deployment setting, not a test input
+for (const key of ["GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION", "BANK_READER_PRIMARY", "BANK_READER_ESCALATE"]) delete process.env[key]; // tests never use the deployment's cloud settings
 
 await import("./bob-502.test.mjs");
 await import("./bob-273.test.mjs");
