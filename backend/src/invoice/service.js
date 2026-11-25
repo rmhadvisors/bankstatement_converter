@@ -119,7 +119,14 @@ function shareBookSeller(invoices) {
   const seller = [...counts.values()].sort((a, b) => b.n - a.n)[0]?.party;
   if (!seller) return;
   for (const invoice of invoices) {
-    if (key(invoice.supplier) === key(seller) || invoice.buyer?.name || !invoice.supplier?.name) continue;
+    if (key(invoice.supplier) === key(seller)) continue;
+    // The reader already put the written name in buyer: only the seller is missing.
+    if (!key(invoice.supplier) && invoice.buyer?.name) {
+      invoice.supplier = { ...seller };
+      (invoice.derived ??= []).push("Bill book: the seller is taken from the printed bill in the same PDF.");
+      continue;
+    }
+    if (invoice.buyer?.name || !invoice.supplier?.name) continue;
     const { name, gstin, address } = invoice.supplier;
     invoice.buyer = { ...invoice.buyer, name, gstin: gstin ?? null, address: address ?? null };
     invoice.supplier = { ...seller };
@@ -140,14 +147,17 @@ function evaluate(items, { parties = [], financialYear = null, history = [], sal
   const results = validateBatch(normalized, { financialYear, history });
   return normalized.map((item, i) => {
     // Sales invoices (issued by the user's client): the party is the customer, not the biller.
-    const counterparty = salesMode ? item.invoice.buyer : item.invoice.supplier;
+    // A bill that names only the buyer (no seller anywhere on it) is entered under the buyer.
+    const { supplier, buyer } = item.invoice;
+    const useBuyer = salesMode || (!supplier.name && !supplier.gstin && Boolean(buyer.name));
+    const counterparty = useBuyer ? buyer : supplier;
     const match = matchParty(counterparty, parties);
     const chosen = ENTRY_TYPES.includes(item.entryType) ? item.entryType : null;
     const guess = guessEntryType({ ...item.invoice, supplier: counterparty });
     const party = match
       ? { name: match.party.name, entryType: match.party.entryType, source: "settings", matchedBy: match.matchedBy }
       : { name: String(counterparty?.name ?? "").toUpperCase(), entryType: chosen ?? guess.entryType, source: chosen ? "chosen" : "guess", guessReason: guess.reason };
-    return { invoice: item.invoice, sourceFile: item.sourceFile ?? null, result: results[i], party };
+    return { invoice: item.invoice, sourceFile: item.sourceFile ?? null, result: results[i], party, salesMode: useBuyer };
   });
 }
 
@@ -164,7 +174,7 @@ async function handleInvoiceExport(request) {
   if (!Array.isArray(body?.items) || (!body.items.length && !failed.length)) return invoiceError("BAD_REQUEST", "Nothing to export.");
   const evaluated = evaluate(body.items, body);
   // A party without a saved entry type uses the suggested one (guessEntryType); the user can still override it.
-  const entries = evaluated.map((entry) => ({ ...entry, entryType: entry.party.entryType, partyName: entry.party.name, salesMode: process.env.INVOICE_PARTY_SIDE === "buyer" }));
+  const entries = evaluated.map((entry) => ({ ...entry, entryType: entry.party.entryType, partyName: entry.party.name }));
   const buffer = await buildInvoiceSheetBuffer(entries, { failed });
   return new Response(buffer, {
     headers: {

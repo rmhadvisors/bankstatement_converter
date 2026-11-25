@@ -99,7 +99,7 @@ test("gemini provider: structured-output request, confidence list -> map, usage,
   await assert.rejects(geminiProvider({ apiKey: "" }).complete({ system: "s", messages: [] }), { code: "GEMINI_KEY_MISSING" });
 });
 
-test("gemini default, safety labels, double-check notes, 3 calls in parallel, per-file timeout", async () => {
+test("gemini default, safety labels, double-check notes, 8 calls in parallel, per-file timeout", async () => {
   const { providerInfo, doubleCheckAllowed } = await import("../../src/invoice/extract.js");
   const { validateInvoice } = await import("../../src/invoice/validate.js");
   const { geminiProvider } = await import("../../src/invoice/gemini.js");
@@ -139,12 +139,12 @@ test("gemini default, safety labels, double-check notes, 3 calls in parallel, pe
   const single = await extractInvoiceDetailed({ name: "a.png", path: photo }, { providerName: "gemini", provider: gemini, sarvam });
   assert.deepEqual(single.invoice.crossCheck, [], "off by default");
 
-  // At most 3 Gemini calls at once.
+  // At most 8 Gemini calls at once.
   let active = 0;
   let peak = 0;
   const slow = { name: "gemini:x", complete: async () => { peak = Math.max(peak, ++active); await new Promise((r) => setTimeout(r, 30)); active--; return { text: JSON.stringify({ invoiceNo: "1" }) }; } };
-  await Promise.all(Array.from({ length: 7 }, () => extractInvoiceDetailed({ name: "a.png", path: photo }, { providerName: "gemini", provider: slow })));
-  assert.equal(peak, 3);
+  await Promise.all(Array.from({ length: 12 }, () => extractInvoiceDetailed({ name: "a.png", path: photo }, { providerName: "gemini", provider: slow })));
+  assert.equal(peak, 8);
 
   // The per-file deadline reaches the provider's fetch.
   const hanging = geminiProvider({ apiKey: "k", fetchImpl: (url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason))) });
