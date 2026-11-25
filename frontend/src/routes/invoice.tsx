@@ -181,7 +181,7 @@ function InvoicePage() {
       const next = itemsRef.current.flatMap((item): Item[] => {
         const group = mine.get(item.id);
         if (!group) return [item];
-        if (group.length === 1 && group[0].name === item.name) return [group[0].invoice ? { ...item, invoice: group[0].invoice, state: "done" as const } : item];
+        if (group.length === 1 && group[0].name === item.name) return [{ ...item, invoice: group[0].invoice, state: group[0].invoice ? ("done" as const) : ("error" as const), error: group[0].error?.message }];
         return group.map((f, i) => ({
           ...item,
           id: crypto.randomUUID(),
