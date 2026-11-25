@@ -64,6 +64,7 @@ Rules:
 - Dates as dd/mm/yyyy. Write a two-digit year as 20yy.
 - GSTIN exactly as printed (15 characters), upper case. Do not fix a GSTIN that looks wrong.
 - supplier = the business that issued the invoice (letterhead / "From"); buyer = billed to.
+- A name, address or GSTIN is the supplier ONLY when the page shows it issued the bill (printed letterhead, "From", "For <name>" above the signature, a seller label). If nothing shows whether it is the supplier or the buyer (e.g. only a name and GSTIN handwritten at the top of a bill-book page), it is the buyer: put it in buyer and leave every supplier field null.
 - lineItems: one entry per printed row. taxableValue only if the invoice has a separate taxable-value column; otherwise put the row total in amount. A lump-sum row with no qty/rate has qty and rate null.
 - rawLine: for every line item, the exact text of that printed or handwritten line as read, left to right, with all its numbers (e.g. "68 sf Film 3920 55/- 3,740/-"). Copy only what is written.
 - hsnSac: on handwritten bill-book rows with no column headings, the layout is "qty+item  HSN  rate  amount" (e.g. "68 sf Film   3920  55/-  3,740/-"). The 4 to 8 digit whole number between the item and the rate (3918, 3920, 6303, 6503, 9403...) is the HSN, never the qty or rate. Always fill it when such a number is written; null only if none is.
@@ -139,8 +140,8 @@ function makeQueue(limit) {
   };
 }
 const queued = makeQueue(CONCURRENCY);
-// Gemini: 3 files in parallel by default; 429s wait as Gemini says (gemini.js).
-const queuedGemini = makeQueue(Number(process.env.GEMINI_CONCURRENCY) || 3);
+// Gemini: 8 files in parallel by default; 429s wait as Gemini says (gemini.js). Lower GEMINI_CONCURRENCY if the quota is hit.
+const queuedGemini = makeQueue(Number(process.env.GEMINI_CONCURRENCY) || 8);
 
 // Sarvam: one job at a time (10 requests/minute per key, polls included).
 let sarvamChain = Promise.resolve();

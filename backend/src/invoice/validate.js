@@ -97,7 +97,7 @@ function validateInvoice(invoice, { financialYear = null, today = new Date() } =
   const lines = invoice.lineItems ?? [];
 
   // Key fields
-  if (!invoice.supplier?.name) add("review", "supplier.name", "Supplier name is missing.");
+  if (!invoice.supplier?.name && !invoice.buyer?.name) add("review", "supplier.name", "Supplier and buyer names are both missing.");
   if (!invoice.invoiceNo) add("review", "invoiceNo", "Invoice number is missing.");
   if (invoice.documentType === "tax_invoice" && !invoice.supplier?.gstin) {
     add("review", "supplier.gstin", "Supplier GSTIN is missing on this tax invoice.");
@@ -338,8 +338,9 @@ function validateBatch(items, { history = [], ...options } = {}) {
   }
   return items.map(({ invoice, sourceFile }, i) => {
     const result = validateInvoice(invoice, options);
-    const key = `${supplierKey(invoice.supplier)}|${normalizeInvoiceNo(invoice.invoiceNo)}`;
-    if (invoice.invoiceNo && supplierKey(invoice.supplier)) {
+    const party = supplierKey(invoice.supplier) || supplierKey(invoice.buyer);
+    const key = `${party}|${normalizeInvoiceNo(invoice.invoiceNo)}`;
+    if (invoice.invoiceNo && party) {
       if (seen.has(key)) {
         result.reasons.push({ level: "review", field: "invoiceNo", message: `Possible duplicate: same supplier and invoice no. as ${seen.get(key)}.` });
         if (result.status === "OK") result.status = "NEEDS REVIEW";
