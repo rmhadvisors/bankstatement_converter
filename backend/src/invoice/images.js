@@ -90,12 +90,11 @@ async function renderPdfPages(buffer, rotate, longSide = MAX_LONG_SIDE, maxPages
   return pages;
 }
 
-// A PDF over MAX_PDF_PAGES pages is a book of separate bills (one per page), not one invoice: -> one
-// single-page PDF buffer per page, so each is read on its own (in parallel). Otherwise null.
-// ponytail: assumes one bill per page; a >10-page PDF holding multi-page invoices would be cut apart.
+// Every page of a PDF is its own bill: -> one single-page PDF buffer per page, each read on its own (in
+// parallel). A one-page PDF: null.
 async function splitBillBook(buffer) {
   const source = await PDFDocument.load(buffer, { ignoreEncryption: true });
-  if (source.getPageCount() <= MAX_PDF_PAGES) return null;
+  if (source.getPageCount() < 2) return null;
   return Promise.all(source.getPageIndices().map(async (i) => {
     const doc = await PDFDocument.create();
     doc.addPage((await doc.copyPages(source, [i]))[0]);
